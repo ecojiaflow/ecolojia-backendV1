@@ -1,49 +1,84 @@
 /* ---------------------------------------------------------
- *  Ecolojia – API backend  (index.js)
- *  Version sécurité + logs structurés Winston
- *  15 juin 2025
+ *  Ecolojia – API backend complet (tracking + affiliation)
+ *  Version corrigée complète – 15 juin 2025
  * --------------------------------------------------------*/
 
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const { PrismaClient, ConfidenceColor, VerifiedStatus } = require('@prisma/client');
-const fetch = require('node-fetch');
-const { execSync } = require('child_process');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const fetch = require('node-fetch');
+const { execSync } = require('child_process');
 const { z } = require('zod');
-const { logger, logMiddleware } = require('./src/logger'); // ✅ nouveau
+const {
+  PrismaClient,
+  ConfidenceColor,
+  VerifiedStatus
+} = require('@prisma/client');
 
 dotenv.config();
 
 const app = express();
 const prisma = new PrismaClient();
 
-/* ---------- Middlewares globaux ---------- */
-app.use(helmet());                 // Sécurité headers
-app.use(cors());                  // CORS
-app.use(express.json());          // JSON body
-app.use(logMiddleware);           // ✅ Winston logger
+/* ---------- Logger simple (sans fichier externe) ---------- */
+const logger = {
+  info: (msg, data) => console.log(`[INFO] ${msg}`, data || ''),
+  warn: (msg, data) => console.warn(`[WARN] ${msg}`, data || ''),
+  error: (msg, data) => console.error(`[ERROR] ${msg}`, data || '')
+};
 
-// Limite générale : 100 req / 15 min
-app.use(rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false
-}));
+/* ---------- Sécurité & middlewares ---------- */
+app.use(helmet());
+app.use(cors());
+app.use(express.json());
 
-/* ---------- Schéma Zod pour produits ---------- */
+// Rate limiting général (désactivé pendant les tests)
+const isTestMode = process.env.NODE_ENV === 'test' || process.env.npm_lifecycle_event === 'test';
+
+if (!isTestMode) {
+  const generalLimit = rateLimit({ 
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100,
+    message: { error: 'Trop de requêtes, réessayez dans 15 minutes' }
+  });
+  app.use(generalLimit);
+  console.log('✅ Rate limiting activé');
+} else {
+  console.log('⚠️ Rate limiting désactivé (mode test)');
+}
+
+/* ---------- Middleware d'authentification ---------- */
+const validateApiKey = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  
+  if (!apiKey) {
+    return res.status(401).json({ 
+      error: 'Clé API requise',
+      code: 'MISSING_API_KEY' 
+    });
+  }
+
+  if (apiKey !== process.env.ADMIN_API_KEY) {
+    return res.status(403).json({ 
+      error: 'Clé API invalide',
+      code: 'INVALID_API_KEY' 
+    });
+  }
+
+  next();
+};
+
+/* ---------- Zod Schemas ---------- */
 const productSchema = z.object({
-  id: z.string().uuid().optional(),
   title: z.string().min(3).max(200),
   description: z.string().min(10),
-  slug: z.string().min(3),
+  slug: z.string().min(3).optional(),
   brand: z.string().optional(),
   category: z.string().optional(),
-  tags: z.array(z.string()).max(10).optional(),
-  images: z.array(z.string()).optional(),
+  tags: z.array(z.string()).max(10).default([]),
+  images: z.array(z.string()).default([]),
   zones_dispo: z.array(z.string()).min(1),
   prices: z.any().optional(),
   affiliate_url: z.string().url().optional(),
@@ -51,81 +86,160 @@ const productSchema = z.object({
   ai_confidence: z.number().min(0).max(1).nullable().optional(),
   confidence_pct: z.number().min(0).max(100).nullable().optional(),
   confidence_color: z.enum(['green', 'yellow', 'red']).nullable().optional(),
-  verified_status: z.enum(['verified', 'manual_review', 'rejected']).optional(),
-  resume_fr: z.string().optional(),
-  resume_en: z.string().optional(),
-  enriched_at: z.string().datetime().optional(),
-  created_at: z.string().datetime().optional()
+  verified_status: z.enum(['verified', 'manual_review', 'rejected']).optional()
 });
 
-/* ---------- ROUTES PRODUITS ---------- */
+const partnerSchema = z.object({
+  name: z.string().min(2).max(100),
+  website: z.string().url().optional(),
+  commission_rate: z.number().min(0).max(1).default(0.05),
+  ethical_score: z.number().min(0).max(5).default(3.0),
+  active: z.boolean().default(true)
+});
 
-app.get('/api/prisma/products', async (_req, res) => {
+const partnerLinkSchema = z.object({
+  product_id: z.string().uuid('ID produit doit être un UUID valide'),
+  partner_id: z.string().uuid('ID partenaire doit être un UUID valide'),
+  url: z.string().url('URL doit être valide'),
+  tracking_id: z.string().optional(),
+  commission_rate: z.number().min(0).max(1).default(0.05),
+  active: z.boolean().default(true)
+});
+
+/* ---------- Routes Produits ---------- */
+app.get('/api/prisma/products', async (req, res) => {
   try {
-    const products = await prisma.product.findMany({ orderBy: { created_at: 'desc' } });
+    const products = await prisma.product.findMany({
+      orderBy: { created_at: 'desc' },
+      include: { 
+        partnerLinks: { 
+          where: { active: true },
+          select: { id: true, url: true } 
+        } 
+      }
+    });
     res.json(products);
   } catch (error) {
-    logger.error('GET /products', { error: error.message }); // ✅ log erreur
+    logger.error('Erreur récupération produits:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
 app.get('/api/products/:slug', async (req, res) => {
   try {
-    const product = await prisma.product.findFirst({ where: { slug: req.params.slug } });
-    if (!product) return res.status(404).json({ error: 'Produit introuvable' });
-    res.json(product);
-  } catch (error) {
-    logger.error('GET /products/:slug', { error: error.message });
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
+    const { slug } = req.params;
+    
+    if (!slug || slug.trim() === '') {
+      return res.status(400).json({ 
+        error: 'ID produit requis',
+        code: 'MISSING_PRODUCT_ID' 
+      });
+    }
 
-app.post('/api/prisma/products', async (req, res) => {
-  const parsed = productSchema.safeParse(req.body);
-  if (!parsed.success) {
-    logger.warn('Validation échouée', parsed.error.flatten());
-    return res.status(422).json({ error: parsed.error.flatten() });
-  }
-  const data = parsed.data;
-
-  try {
-    const product = await prisma.product.create({
-      data: {
-        id: data.id,
-        title: data.title,
-        description: data.description,
-        slug: data.slug,
-        brand: data.brand,
-        category: data.category,
-        tags: data.tags,
-        images: data.images,
-        zones_dispo: data.zones_dispo,
-        prices: data.prices,
-        affiliate_url: data.affiliate_url,
-        eco_score: data.eco_score,
-        ai_confidence: data.ai_confidence,
-        confidence_pct: data.confidence_pct,
-        confidence_color: ConfidenceColor[data.confidence_color] || ConfidenceColor.yellow,
-        verified_status: VerifiedStatus[data.verified_status] || VerifiedStatus.manual_review,
-        resume_fr: data.resume_fr,
-        resume_en: data.resume_en,
-        enriched_at: data.enriched_at ? new Date(data.enriched_at) : undefined,
-        created_at: data.created_at ? new Date(data.created_at) : undefined
+    const slugTrimmed = slug.trim();
+    
+    // Rechercher par ID ou par slug (gérer les cas où slug est null)
+    const product = await prisma.product.findFirst({
+      where: {
+        OR: [
+          { id: slugTrimmed },
+          { slug: slugTrimmed }
+        ]
+      },
+      include: { 
+        partnerLinks: { 
+          where: { active: true },
+          include: {
+            partner: { select: { name: true } }
+          }
+        } 
       }
     });
-    res.status(201).json(product);
+
+    if (!product) {
+      return res.status(404).json({ 
+        error: 'Produit non trouvé',
+        code: 'PRODUCT_NOT_FOUND',
+        productId: slug 
+      });
+    }
+
+    res.json({
+      success: true,
+      product: {
+        ...product,
+        eco_score: product.eco_score ? parseFloat(product.eco_score) : null,
+        ai_confidence: product.ai_confidence ? parseFloat(product.ai_confidence) : null
+      }
+    });
+
   } catch (error) {
-    logger.error('POST /products', { error: error.message });
-    res.status(400).json({ error: 'Erreur ajout produit' });
+    logger.error('Erreur récupération produit:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la récupération du produit',
+      code: 'INTERNAL_SERVER_ERROR'
+    });
   }
 });
 
-/* ---------- ROUTE IA / SUGGEST ---------- */
-app.post('/api/suggest', rateLimit({ windowMs: 60 * 1000, max: 5 }), async (req, res) => {
+app.post('/api/prisma/products', validateApiKey, async (req, res) => {
+  try {
+    const parsed = productSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ 
+        error: 'Données invalides',
+        details: parsed.error.flatten() 
+      });
+    }
+
+    const data = parsed.data;
+    
+    // Générer slug si pas fourni
+    if (!data.slug) {
+      data.slug = data.title.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+    }
+
+    const product = await prisma.product.create({
+      data: {
+        ...data,
+        confidence_color: data.confidence_color || 'yellow',
+        verified_status: data.verified_status || 'manual_review'
+      }
+    });
+
+    logger.info(`Produit créé: ${product.title}`);
+    res.status(201).json(product);
+  } catch (error) {
+    logger.error('Erreur création produit:', error);
+    res.status(400).json({ error: 'Erreur lors de la création du produit' });
+  }
+});
+
+/* ---------- Route IA Suggestion ---------- */
+const suggestLimit = rateLimit({ 
+  windowMs: 60 * 1000, // 1 minute
+  max: isTestMode ? 1000 : 5, // Plus permissif en test
+  message: { error: 'Limite de suggestions atteinte, réessayez dans 1 minute' }
+});
+
+app.post('/api/suggest', isTestMode ? [] : suggestLimit, async (req, res) => {
+
   try {
     const { query, zone, lang } = req.body;
-    if (!query || !zone || !lang) return res.status(400).json({ error: 'query, zone and lang required' });
+    
+    if (!query || !zone || !lang) {
+      return res.status(400).json({ 
+        error: 'Paramètres query, zone et lang requis' 
+      });
+    }
+
+    if (!process.env.N8N_SUGGEST_URL) {
+      return res.status(503).json({ 
+        error: 'Service d\'enrichissement non configuré' 
+      });
+    }
 
     const response = await fetch(process.env.N8N_SUGGEST_URL, {
       method: 'POST',
@@ -133,29 +247,269 @@ app.post('/api/suggest', rateLimit({ windowMs: 60 * 1000, max: 5 }), async (req,
       body: JSON.stringify({ query, zone, lang })
     });
 
+    if (!response.ok) {
+      throw new Error(`N8N responded with ${response.status}`);
+    }
+
     const result = await response.json();
     res.json(result);
-  } catch (err) {
-    logger.error('POST /suggest', { error: err.message });
-    res.status(500).json({ error: 'Erreur suggestion IA' });
-  }
-});
-
-/* ---------- ROUTES UTILITAIRES ---------- */
-app.get('/', (_req, res) => res.send('Hello from Ecolojia backend!'));
-app.get('/health', (_req, res) => res.json({ status: 'up' }));
-
-app.get('/init-db', async (_req, res) => {
-  try {
-    execSync('npx prisma db push');
-    res.send('✅ Base de données synchronisée.');
   } catch (error) {
-    logger.error('GET /init-db', { error: error.message });
-    res.status(500).send('Erreur db push');
+    logger.error('Erreur suggestion IA:', error);
+    res.status(500).json({ error: 'Erreur lors de la suggestion IA' });
   }
 });
 
-/* ---------- LANCEMENT SERVEUR ---------- */
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => logger.info(`✅ API running on port ${PORT}`));
+/* ======================================================
+ *                  AFFILIATION
+ * ====================================================== */
 
+/* ---------- GET /api/partners ---------- */
+app.get('/api/partners', async (req, res) => {
+  try {
+    const partners = await prisma.partner.findMany({
+      where: { active: true },
+      orderBy: { created_at: 'desc' }
+    });
+    res.json(partners);
+  } catch (error) {
+    logger.error('Erreur récupération partenaires:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/* ---------- POST /api/partners ---------- */
+app.post('/api/partners', validateApiKey, async (req, res) => {
+  try {
+    const parsed = partnerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ 
+        error: 'Données invalides',
+        details: parsed.error.flatten() 
+      });
+    }
+
+    const newPartner = await prisma.partner.create({ 
+      data: parsed.data 
+    });
+    
+    logger.info(`Partenaire créé: ${newPartner.name}`);
+    res.status(201).json(newPartner);
+  } catch (error) {
+    logger.error('Erreur création partenaire:', error);
+    res.status(500).json({ error: 'Erreur lors de la création du partenaire' });
+  }
+});
+
+/* ---------- POST /api/partner-links ---------- */
+app.post('/api/partner-links', validateApiKey, async (req, res) => {
+  try {
+    const parsed = partnerLinkSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Données invalides',
+        details: parsed.error.flatten()
+      });
+    }
+
+    const data = parsed.data;
+
+    // Vérifier que le partenaire existe EN PREMIER
+    const partner = await prisma.partner.findUnique({
+      where: { id: data.partner_id }
+    });
+    
+    if (!partner) {
+      logger.warn(`Partenaire non trouvé: ${data.partner_id}`);
+      return res.status(404).json({
+        error: 'Partenaire non trouvé',
+        code: 'PARTNER_NOT_FOUND',
+        partner_id: data.partner_id
+      });
+    }
+
+    // Puis vérifier que le produit existe
+    const product = await prisma.product.findUnique({
+      where: { id: data.product_id }
+    });
+    
+    if (!product) {
+      logger.warn(`Produit non trouvé: ${data.product_id}`);
+      return res.status(404).json({
+        error: 'Produit non trouvé',
+        code: 'PRODUCT_NOT_FOUND',
+        product_id: data.product_id
+      });
+    }
+
+    logger.info(`Validation OK - Produit: ${product.title}, Partenaire: ${partner.name}`);
+
+    // Vérifier si un lien existe déjà
+    const existingLink = await prisma.partnerLink.findFirst({
+      where: {
+        product_id: data.product_id,
+        partner_id: data.partner_id
+      }
+    });
+
+    let partnerLink;
+
+    if (existingLink) {
+      // Mise à jour
+      partnerLink = await prisma.partnerLink.update({
+        where: { id: existingLink.id },
+        data: data,
+        include: {
+          product: { select: { title: true } },
+          partner: { select: { name: true } }
+        }
+      });
+      
+      res.json({
+        success: true,
+        action: 'updated',
+        partnerLink
+      });
+    } else {
+      // Création
+      partnerLink = await prisma.partnerLink.create({
+        data: data,
+        include: {
+          product: { select: { title: true } },
+          partner: { select: { name: true } }
+        }
+      });
+      
+      res.status(201).json({
+        success: true,
+        action: 'created',
+        partnerLink
+      });
+    }
+
+    logger.info(`Lien ${existingLink ? 'mis à jour' : 'créé'}: ${partnerLink.product.title} -> ${partnerLink.partner.name}`);
+
+  } catch (error) {
+    logger.error('Erreur création partner link:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/* ---------- GET /api/partner-links ---------- */
+app.get('/api/partner-links', validateApiKey, async (req, res) => {
+  try {
+    const { product_id, partner_id, active } = req.query;
+    
+    const where = {};
+    if (product_id) where.product_id = product_id;
+    if (partner_id) where.partner_id = partner_id;
+    if (active !== undefined) where.active = active === 'true';
+
+    const partnerLinks = await prisma.partnerLink.findMany({
+      where,
+      include: {
+        product: { select: { id: true, title: true } },
+        partner: { select: { id: true, name: true } }
+      },
+      orderBy: { created_at: 'desc' }
+    });
+
+    res.json({
+      success: true,
+      count: partnerLinks.length,
+      partnerLinks
+    });
+
+  } catch (error) {
+    logger.error('Erreur récupération partner links:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/* ---------- GET /api/track/:linkId ---------- */
+app.get('/api/track/:linkId', async (req, res) => {
+  try {
+    const { linkId } = req.params;
+
+    const link = await prisma.partnerLink.findUnique({
+      where: { id: linkId }
+    });
+
+    if (!link) {
+      logger.warn(`Lien affilié introuvable: ${linkId}`);
+      return res.status(404).json({ error: 'Lien affilié introuvable' });
+    }
+
+    // Incrémenter le compteur de clics
+    await prisma.partnerLink.update({
+      where: { id: linkId },
+      data: { clicks: { increment: 1 } }
+    });
+
+    logger.info(`Redirection vers: ${link.url} (clicks: ${link.clicks + 1})`);
+    return res.redirect(302, link.url);
+  } catch (error) {
+    logger.error('Erreur tracking:', error);
+    res.status(500).json({ error: 'Erreur lors du tracking' });
+  }
+});
+
+/* ---------- Routes utilitaires ---------- */
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Ecolojia API',
+    version: '1.0.0',
+    status: 'operational'
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'up',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+app.get('/init-db', validateApiKey, async (req, res) => {
+  try {
+    execSync('npx prisma db push', { stdio: 'inherit' });
+    res.json({ 
+      success: true,
+      message: 'Base de données synchronisée' 
+    });
+  } catch (error) {
+    logger.error('Erreur db push:', error);
+    res.status(500).json({ error: 'Erreur lors de la synchronisation' });
+  }
+});
+
+/* ---------- Gestion erreurs globales ---------- */
+app.use((err, req, res, next) => {
+  logger.error('Erreur non gérée:', err);
+  res.status(500).json({ 
+    error: 'Erreur interne du serveur',
+    code: 'INTERNAL_SERVER_ERROR'
+  });
+});
+
+app.use((req, res) => {
+  res.status(404).json({ 
+    error: 'Route non trouvée',
+    code: 'ROUTE_NOT_FOUND',
+    path: req.path
+  });
+});
+
+/* ---------- Lancement serveur ---------- */
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`✅ Ecolojia API démarrée sur le port ${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// Gestion propre de l'arrêt
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM reçu, arrêt propre...');
+  await prisma.$disconnect();
+  process.exit(0);
+});
