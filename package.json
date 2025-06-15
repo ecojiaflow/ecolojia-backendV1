@@ -1,0 +1,30 @@
+{
+  "name": "ecolojia-backend",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "dev": "prisma generate && node index.js",
+    "start": "prisma generate && node index.js",
+    "build": "prisma generate",
+    "lint": "echo 'No lint configured'"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.8.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "node-fetch": "^2.7.0",
+    "prisma": "^6.8.2",
+    "winston": "^3.17.0",
+    "zod": "^3.25.64"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  },
+  "description": "API backend for Ecolojia - Node.js + Express + Prisma",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
