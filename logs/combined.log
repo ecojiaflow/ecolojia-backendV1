@@ -1,3 +1,0 @@
-{"level":"info","message":"✅ API running on port 3000","timestamp":"2025-06-15T11:00:09.839Z"}
-{"ip":"::1","level":"info","message":"→ Requête","method":"GET","sessionId":"anonymous","timestamp":"2025-06-15T11:00:37.675Z","url":"/api/prisma/products","userAgent":"Mozilla/5.0 (Windows NT; Windows NT 10.0; fr-FR) WindowsPowerShell/5.1.26100.4202"}
-{"duration":"2121ms","level":"info","message":"← Réponse","method":"GET","sessionId":"anonymous","statusCode":200,"timestamp":"2025-06-15T11:00:39.796Z","url":"/api/prisma/products"}
