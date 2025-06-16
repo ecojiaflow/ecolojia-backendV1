@@ -7,12 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// ---------- Modèles existants ----------
 model Product {
   id               String           @id @default(uuid())
   title            String
+  slug             String           @unique                     // ✅ Slug unique obligatoire
   description      String
-  slug             String?          @unique
   brand            String?
   category         String?
   tags             String[]         @default([])
@@ -20,6 +19,7 @@ model Product {
   zones_dispo      String[]
   prices           Json?
   affiliate_url    String?
+  image_url        String?                                         // ✅ URL Cloudinary principale
   eco_score        Decimal?         @db.Decimal(3, 2)
   ai_confidence    Decimal?         @db.Decimal(3, 2)
   confidence_pct   Int?
@@ -30,7 +30,7 @@ model Product {
   enriched_at      DateTime?
   created_at       DateTime         @default(now())
   updated_at       DateTime         @updatedAt
-  
+
   // Relations
   partnerLinks     PartnerLink[]
 
@@ -51,16 +51,15 @@ model Region {
   @@map("regions")
 }
 
-/// ---------- Modèles Affiliation ----------
 model Partner {
   id              String        @id @default(uuid())
   name            String
   website         String?
   commission_rate Decimal       @default(0.05) @db.Decimal(5, 4)
-  ethical_score   Decimal       @default(3.0) @db.Decimal(3, 2)
+  ethical_score   Decimal       @default(3.0)  @db.Decimal(3, 2)
   active          Boolean       @default(true)
   created_at      DateTime      @default(now())
-  
+
   // Relations
   links           PartnerLink[]
 
@@ -78,7 +77,7 @@ model PartnerLink {
   active          Boolean  @default(true)
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
-  
+
   // Relations
   product         Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
   partner         Partner  @relation(fields: [partner_id], references: [id], onDelete: Cascade)
@@ -87,7 +86,6 @@ model PartnerLink {
   @@map("partner_links")
 }
 
-/// ---------- Enums existants ----------
 enum ConfidenceColor {
   green
   yellow

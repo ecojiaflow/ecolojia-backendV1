@@ -2,22 +2,40 @@
   "name": "ecolojia-backend",
   "version": "0.1.0",
   "private": true,
-  "main": "index.js",
+  "description": "API backend for Ecolojia - Node.js + Express + Prisma",
+  "main": "src/app.ts",
   "scripts": {
-    "dev": "node index.js",
-    "start": "node index.js",
+    "dev": "ts-node src/app.ts",
+    "start": "ts-node src/app.ts",
     "build": "prisma generate",
-    "lint": "echo 'No lint configured'",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "lint": "echo 'No lint configured'",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
     "prisma:push": "prisma db push",
-    "db:reset": "prisma db push --force-reset"
+    "db:reset": "prisma db push --force-reset",
+    "import:products": "ts-node scripts/importProducts.ts",
+    "seed:affiliation": "ts-node scripts/seed-affiliation.ts",
+    "test:insert": "ts-node scripts/testInsert.ts",
+    "sync:algolia": "ts-node scripts/syncAlgolia.ts"
+  },
+  "keywords": [
+    "ecolojia",
+    "api",
+    "eco-friendly",
+    "express",
+    "prisma"
+  ],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",
+    "algoliasearch": "^4.24.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
@@ -29,17 +47,14 @@
     "zod": "^3.25.64"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/helmet": "^0.0.48",
     "@types/jest": "^29.5.14",
-    "@types/node": "^20",
+    "@types/node": "^20.19.0",
     "jest": "^30.0.0",
     "supertest": "^7.1.1",
-    "typescript": "^5"
-  },
-  "description": "API backend for Ecolojia - Node.js + Express + Prisma",
-  "keywords": ["ecolojia", "api", "eco-friendly", "express", "prisma"],
-  "author": "",
-  "license": "ISC",
-  "engines": {
-    "node": ">=18.0.0"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   }
 }
