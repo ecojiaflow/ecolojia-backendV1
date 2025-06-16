@@ -187,6 +187,95 @@ app.get('/api/products/:slug', async (req, res) => {
   }
 });
 
+// ✅ NOUVELLE ROUTE POST /api/products (SANS AUTHENTIFICATION)
+app.post('/api/products', async (req, res) => {
+  try {
+    const {
+      id,
+      title,
+      description,
+      slug,
+      brand,
+      category,
+      tags,
+      images,
+      zones_dispo,
+      prices,
+      affiliate_url,
+      eco_score,
+      ai_confidence,
+      confidence_pct,
+      confidence_color,
+      verified_status,
+      resume_fr,
+      resume_en,
+      source,
+      external_id
+    } = req.body;
+
+    if (!title || !description) {
+      return res.status(400).json({ 
+        error: 'Champs requis manquants',
+        required: ['title', 'description']
+      });
+    }
+
+    const generatedSlug = slug || title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 50) + `-${Date.now()}`;
+
+    const product = await prisma.product.create({
+      data: {
+        id: id || `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        title: title.trim(),
+        description: description.trim(),
+        slug: generatedSlug,
+        brand: brand || null,
+        category: category || 'general',
+        tags: Array.isArray(tags) ? tags : [],
+        images: Array.isArray(images) ? images : [],
+        zones_dispo: Array.isArray(zones_dispo) ? zones_dispo : ['FR'],
+        prices: prices || {},
+        affiliate_url: affiliate_url || null,
+        eco_score: parseFloat(eco_score) || 0.5,
+        ai_confidence: parseFloat(ai_confidence) || 0.5,
+        confidence_pct: parseInt(confidence_pct) || 50,
+        confidence_color: confidence_color || 'orange',
+        verified_status: verified_status || 'manual_review',
+        resume_fr: resume_fr || '',
+        resume_en: resume_en || '',
+        source: source || 'manual',
+        external_id: external_id || null
+      },
+      include: {
+        partnerLinks: {
+          include: { partner: true }
+        }
+      }
+    });
+
+    console.log(`✅ Produit créé: ${product.title}`);
+    res.status(201).json(product);
+
+  } catch (error) {
+    console.error('❌ Erreur création produit:', error);
+    
+    if (error.code === 'P2002') {
+      return res.status(409).json({ 
+        error: 'Produit existe déjà',
+        field: error.meta?.target?.[0] || 'slug'
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Erreur création produit',
+      details: error.message 
+    });
+  }
+});
+
 app.post('/api/prisma/products', validateApiKey, async (req, res) => {
   try {
     const parsed = productSchema.safeParse(req.body);
@@ -484,10 +573,12 @@ app.get('/', (req, res) => {
     status: 'operational',
     endpoints: [
       'GET /api/products/:slug',
+      'POST /api/products',
       'GET /api/partners',
       'GET /api/track/:linkId',
       'GET /health'
-    ]
+    ],
+    timestamp: new Date().toISOString()
   });
 });
 
