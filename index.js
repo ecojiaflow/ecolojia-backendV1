@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------
  *  Ecolojia – API backend complet (tracking + affiliation)
- *  Version corrigée complète – 15 juin 2025
+ *  Version corrigée complète – 16 juin 2025
  * --------------------------------------------------------*/
 
 const express = require('express');
@@ -138,7 +138,7 @@ app.get('/api/products/:slug', async (req, res) => {
 
     const slugTrimmed = slug.trim();
     
-    // Rechercher par ID ou par slug (gérer les cas où slug est null)
+    // Rechercher par ID ou par slug
     const product = await prisma.product.findFirst({
       where: {
         OR: [
@@ -150,7 +150,15 @@ app.get('/api/products/:slug', async (req, res) => {
         partnerLinks: { 
           where: { active: true },
           include: {
-            partner: { select: { name: true } }
+            partner: {
+              select: { 
+                id: true,
+                name: true,
+                website: true,
+                commission_rate: true,
+                ethical_score: true
+              }
+            }
           }
         } 
       }
@@ -165,12 +173,9 @@ app.get('/api/products/:slug', async (req, res) => {
     }
 
     res.json({
-      success: true,
-      product: {
-        ...product,
-        eco_score: product.eco_score ? parseFloat(product.eco_score) : null,
-        ai_confidence: product.ai_confidence ? parseFloat(product.ai_confidence) : null
-      }
+      ...product,
+      eco_score: product.eco_score ? parseFloat(product.eco_score) : null,
+      ai_confidence: product.ai_confidence ? parseFloat(product.ai_confidence) : null
     });
 
   } catch (error) {
@@ -225,7 +230,6 @@ const suggestLimit = rateLimit({
 });
 
 app.post('/api/suggest', isTestMode ? [] : suggestLimit, async (req, res) => {
-
   try {
     const { query, zone, lang } = req.body;
     
@@ -313,7 +317,7 @@ app.post('/api/partner-links', validateApiKey, async (req, res) => {
 
     const data = parsed.data;
 
-    // Vérifier que le partenaire existe EN PREMIER
+    // Vérifier que le partenaire existe
     const partner = await prisma.partner.findUnique({
       where: { id: data.partner_id }
     });
@@ -327,7 +331,7 @@ app.post('/api/partner-links', validateApiKey, async (req, res) => {
       });
     }
 
-    // Puis vérifier que le produit existe
+    // Vérifier que le produit existe
     const product = await prisma.product.findUnique({
       where: { id: data.product_id }
     });
@@ -430,13 +434,25 @@ app.get('/api/track/:linkId', async (req, res) => {
   try {
     const { linkId } = req.params;
 
+    logger.info(`Tentative de tracking pour: ${linkId}`);
+
+    // Rechercher le lien avec les relations
     const link = await prisma.partnerLink.findUnique({
-      where: { id: linkId }
+      where: { id: linkId },
+      include: {
+        partner: { select: { name: true } },
+        product: { select: { title: true } }
+      }
     });
 
     if (!link) {
       logger.warn(`Lien affilié introuvable: ${linkId}`);
       return res.status(404).json({ error: 'Lien affilié introuvable' });
+    }
+
+    if (!link.active) {
+      logger.warn(`Lien affilié inactif: ${linkId}`);
+      return res.status(404).json({ error: 'Lien affilié inactif' });
     }
 
     // Incrémenter le compteur de clics
@@ -445,11 +461,18 @@ app.get('/api/track/:linkId', async (req, res) => {
       data: { clicks: { increment: 1 } }
     });
 
-    logger.info(`Redirection vers: ${link.url} (clicks: ${link.clicks + 1})`);
+    logger.info(`Redirection vers: ${link.url} (${link.partner.name}) - nouveau total clicks: ${link.clicks + 1}`);
+    
+    // Redirection 302 vers l'URL du partenaire
     return res.redirect(302, link.url);
+    
   } catch (error) {
-    logger.error('Erreur tracking:', error);
-    res.status(500).json({ error: 'Erreur lors du tracking' });
+    logger.error('Erreur tracking:', error.message);
+    logger.error('Stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Erreur lors du tracking',
+      code: 'TRACKING_ERROR'
+    });
   }
 });
 
@@ -458,7 +481,13 @@ app.get('/', (req, res) => {
   res.json({ 
     message: 'Ecolojia API',
     version: '1.0.0',
-    status: 'operational'
+    status: 'operational',
+    endpoints: [
+      'GET /api/products/:slug',
+      'GET /api/partners',
+      'GET /api/track/:linkId',
+      'GET /health'
+    ]
   });
 });
 
