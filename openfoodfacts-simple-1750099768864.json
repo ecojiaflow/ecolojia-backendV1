@@ -1,0 +1,132 @@
+[
+  {
+    "id": "off_7622210578464",
+    "title": "Organic 70% Dark Chocolate Bar",
+    "description": "Produit alimentaire de Green & Black's - Snacks. Données OpenFoodFacts.",
+    "slug": "organic-70-dark-chocolate-bar-1750099765651",
+    "brand": "Green & Black's",
+    "category": "alimentation",
+    "tags": [
+      "alimentaire",
+      "collation"
+    ],
+    "images": [
+      "https://images.openfoodfacts.org/images/products/762/221/057/8464/front_en.29.400.jpg"
+    ],
+    "zones_dispo": [
+      "FR"
+    ],
+    "affiliate_url": "https://world.openfoodfacts.org/product/7622210578464",
+    "eco_score": 0.6,
+    "ai_confidence": 0.7,
+    "resume_fr": "Produit alimentaire Green & Black's référencé OpenFoodFacts",
+    "resume_en": "Food product Green & Black's from OpenFoodFacts",
+    "source": "basic-search",
+    "external_id": "7622210578464",
+    "created_at": "2025-06-16T18:49:25.651Z"
+  },
+  {
+    "id": "off_7300400481595",
+    "title": "Tartine croustillante Authentique",
+    "description": "Produit alimentaire de Barilla, Wasa - Aliments et boissons à base de végétaux. Données OpenFoodFacts.",
+    "slug": "tartine-croustillante-authentique-1750099765652",
+    "brand": "Barilla, Wasa",
+    "category": "alimentation",
+    "tags": [
+      "alimentaire",
+      "boisson",
+      "collation"
+    ],
+    "images": [
+      "https://images.openfoodfacts.org/images/products/730/040/048/1595/front_fr.219.400.jpg"
+    ],
+    "zones_dispo": [
+      "FR"
+    ],
+    "affiliate_url": "https://world.openfoodfacts.org/product/7300400481595",
+    "eco_score": 0.6,
+    "ai_confidence": 0.7,
+    "resume_fr": "Produit alimentaire Barilla, Wasa référencé OpenFoodFacts",
+    "resume_en": "Food product Barilla, Wasa from OpenFoodFacts",
+    "source": "basic-search",
+    "external_id": "7300400481595",
+    "created_at": "2025-06-16T18:49:25.652Z"
+  },
+  {
+    "id": "off_8052575090230",
+    "title": "Nocciolata",
+    "description": "Produit alimentaire de Rigoni Di Asiago - Petit-déjeuners. Données OpenFoodFacts.",
+    "slug": "nocciolata-1750099765652",
+    "brand": "Rigoni Di Asiago",
+    "category": "alimentation",
+    "tags": [
+      "alimentaire"
+    ],
+    "images": [
+      "https://images.openfoodfacts.org/images/products/805/257/509/0230/front_en.58.400.jpg"
+    ],
+    "zones_dispo": [
+      "FR"
+    ],
+    "affiliate_url": "https://world.openfoodfacts.org/product/8052575090230",
+    "eco_score": 0.6,
+    "ai_confidence": 0.7,
+    "resume_fr": "Produit alimentaire Rigoni Di Asiago référencé OpenFoodFacts",
+    "resume_en": "Food product Rigoni Di Asiago from OpenFoodFacts",
+    "source": "basic-search",
+    "external_id": "8052575090230",
+    "created_at": "2025-06-16T18:49:25.652Z"
+  },
+  {
+    "id": "off_7622210584724",
+    "title": "Dark chocolate",
+    "description": "Produit alimentaire de Green & Black's - Snacks. Données OpenFoodFacts.",
+    "slug": "dark-chocolate-1750099765652",
+    "brand": "Green & Black's",
+    "category": "alimentation",
+    "tags": [
+      "alimentaire",
+      "collation"
+    ],
+    "images": [
+      "https://images.openfoodfacts.org/images/products/762/221/058/4724/front_en.95.400.jpg"
+    ],
+    "zones_dispo": [
+      "FR"
+    ],
+    "affiliate_url": "https://world.openfoodfacts.org/product/7622210584724",
+    "eco_score": 0.6,
+    "ai_confidence": 0.7,
+    "resume_fr": "Produit alimentaire Green & Black's référencé OpenFoodFacts",
+    "resume_en": "Food product Green & Black's from OpenFoodFacts",
+    "source": "basic-search",
+    "external_id": "7622210584724",
+    "created_at": "2025-06-16T18:49:25.652Z"
+  },
+  {
+    "id": "off_3229820100234",
+    "title": "Fourrés Chocolat Noir",
+    "description": "Produit alimentaire de Bjorg - Snacks. Données OpenFoodFacts.",
+    "slug": "fourr-s-chocolat-noir-1750099765652",
+    "brand": "Bjorg",
+    "category": "alimentation",
+    "tags": [
+      "alimentaire",
+      "collation"
+    ],
+    "images": [
+      "https://images.openfoodfacts.org/images/products/322/982/010/0234/front_fr.246.400.jpg"
+    ],
+    "zones_dispo": [
+      "FR"
+    ],
+    "affiliate_url": "https://world.openfoodfacts.org/product/3229820100234",
+    "eco_score": 0.6,
+    "ai_confidence": 0.7,
+    "resume_fr": "Produit alimentaire Bjorg référencé OpenFoodFacts",
+    "resume_en": "Food product Bjorg from OpenFoodFacts",
+    "source": "basic-search",
+    "external_id": "3229820100234",
+    "created_at": "2025-06-16T18:49:25.652Z"
+  }
+]
