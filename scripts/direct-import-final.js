@@ -7,7 +7,7 @@ const fs = require('fs');
 
 // ✅ Configuration complète
 const CONFIG = {
-  BACKEND_URL: 'https://ecolojia-backendv1.onrender.com',
+  BACKEND_URL: 'https://ecolojia-backendv1.onrender.com', // PRODUCTION RENDER
   OPENFOODFACTS_URL: 'https://world.openfoodfacts.org/cgi/search.pl',
   ALGOLIA_URL: 'https://A2KJGZ2811-dsn.algolia.net/1/indexes/products/batch',
   ALGOLIA_APP_ID: 'A2KJGZ2811',
@@ -60,6 +60,8 @@ async function fetchProducts() {
 function transformProduct(product, index) {
   const slug = generateUniqueSlug(product.product_name, index);
   const ecoScore = calculateEcoScore(product);
+  const confidence = 0.75;
+  const confidenceColor = confidence >= 0.85 ? 'green' : confidence >= 0.6 ? 'yellow' : 'red';
   const tags = extractTags(product);
   
   return {
@@ -82,12 +84,11 @@ function transformProduct(product, index) {
     eco_score: ecoScore,
     ai_confidence: 0.75, // Confiance modérée (pas d'IA)
     confidence_pct: 75,
-    confidence_color: 'orange',
+    confidence_color: confidenceColor, // Utilise la valeur calculée
     verified_status: 'manual_review',
     resume_fr: generateResumeFr(product),
     resume_en: generateResumeEn(product),
-    source: 'OpenFoodFacts',
-    external_id: product.code,
+    // Note: champs source et external_id supprimés (non supportés)
     enriched_at: new Date().toISOString(),
     created_at: new Date().toISOString()
   };
@@ -281,8 +282,10 @@ async function runDirectImport() {
       transformProduct(product, index)
     );
     
-    // 3. Sauvegarde base de données
-    const savedCount = await saveToDatabase(enrichedProducts);
+    // 3. Sauvegarde base de données (test avec 1 produit d'abord)
+    console.log('\n🧪 Test avec 1 produit d\'abord...');
+    const testProducts = enrichedProducts.slice(0, 1);
+    const savedCount = await saveToDatabase(testProducts);
     
     // 4. Indexation Algolia
     if (savedCount > 0) {

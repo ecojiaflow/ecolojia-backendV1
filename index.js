@@ -187,7 +187,7 @@ app.get('/api/products/:slug', async (req, res) => {
   }
 });
 
-// ✅ NOUVELLE ROUTE POST /api/products (SANS AUTHENTIFICATION)
+// ✅ ROUTE POST /api/products CORRIGÉE (SANS AUTHENTIFICATION)
 app.post('/api/products', async (req, res) => {
   try {
     const {
@@ -208,9 +208,7 @@ app.post('/api/products', async (req, res) => {
       confidence_color,
       verified_status,
       resume_fr,
-      resume_en,
-      source,
-      external_id
+      resume_en
     } = req.body;
 
     if (!title || !description) {
@@ -239,15 +237,13 @@ app.post('/api/products', async (req, res) => {
         zones_dispo: Array.isArray(zones_dispo) ? zones_dispo : ['FR'],
         prices: prices || {},
         affiliate_url: affiliate_url || null,
-        eco_score: parseFloat(eco_score) || 0.5,
-        ai_confidence: parseFloat(ai_confidence) || 0.5,
-        confidence_pct: parseInt(confidence_pct) || 50,
-        confidence_color: confidence_color || 'orange',
+        eco_score: eco_score || 0.5,      // ✅ Type Decimal correct
+        ai_confidence: ai_confidence || 0.75,  // ✅ Type Decimal correct
+        confidence_pct: parseInt(confidence_pct) || 75,
+        confidence_color: confidence_color || 'yellow',
         verified_status: verified_status || 'manual_review',
         resume_fr: resume_fr || '',
-        resume_en: resume_en || '',
-        source: source || 'manual',
-        external_id: external_id || null
+        resume_en: resume_en || ''
       },
       include: {
         partnerLinks: {
