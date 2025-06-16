@@ -12,6 +12,22 @@ router.get('/products', (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/products/search
+ * Recherche de produits avec filtres
+ */
+router.get('/products/search', (req: Request, res: Response) => {
+  ProductController.searchProducts(req, res);
+});
+
+/**
+ * GET /api/products/stats
+ * Statistiques des produits
+ */
+router.get('/products/stats', (req: Request, res: Response) => {
+  ProductController.getProductStats(req, res);
+});
+
+/**
  * GET /api/products/:slug
  * Retourne un produit par son slug
  */
