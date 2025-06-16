@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "API backend for Ecolojia - Node.js + Express + Prisma",
-  "main": "src/app.ts",
+  "main": "index.js",
   "scripts": {
-    "dev": "ts-node src/app.ts",
-    "start": "ts-node src/app.ts",
+    "dev": "node index.js",
+    "start": "node index.js",
     "build": "prisma generate",
     "test": "jest",
     "test:watch": "jest --watch",
