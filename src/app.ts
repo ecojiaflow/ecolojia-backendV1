@@ -1,10 +1,13 @@
+// ✅ FICHIER : src/app.ts
+
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 
 import productRoutes from './routes/product.routes';
-import healthRouter from './routes/health.routes'; // ✅ Route /health ajoutée
+import healthRouter from './routes/health.routes';
+import partnerRoutes from './routes/partner.routes'; // 👈 Ajouté pour tracking affiliation
 
 // 🌍 Charge les variables d'environnement depuis .env
 dotenv.config();
@@ -18,9 +21,10 @@ app.use(express.json());
 
 // 📦 Routes API
 app.use('/api', productRoutes);
-app.use('/', healthRouter); // ✅ Enregistre la route de santé
+app.use('/api', partnerRoutes); // 👈 Tracking = partie de l'API
+app.use('/', healthRouter);     // ✅ Route de santé
 
-// 📋 Route d'information API
+// 📋 Route racine d'information API
 app.get('/', (req, res) => {
   res.json({
     message: "Ecolojia API",
@@ -34,6 +38,7 @@ app.get('/', (req, res) => {
       "DELETE /api/products/:id",
       "GET /api/products/search",
       "GET /api/products/stats",
+      "GET /api/track/:id",              // 👈 Ajout du tracking ici
       "GET /health"
     ],
     documentation: "https://github.com/ecojiaflow/ecolojia-backendV1",
@@ -50,5 +55,5 @@ app.listen(PORT, () => {
   console.log(`💚 Santé API: http://localhost:${PORT}/health`);
 });
 
-// Pour tests éventuels
+// Pour tests éventuels (ex: supertest)
 export default app;
