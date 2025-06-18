@@ -16,7 +16,7 @@ export const getAllProducts = async (req: Request, res: Response) => {
       include: {
         partnerLinks: {
           include: {
-            partner: true, // ✅ inclure partenaire dans liste d'accueil aussi
+            partner: true,
           },
         },
       },
@@ -31,7 +31,7 @@ export const getAllProducts = async (req: Request, res: Response) => {
 
 /**
  * GET /api/products/:slug
- * Retourne un produit par son slug (ex: savon-alep-artisanal)
+ * Retourne un produit par son slug
  */
 export const getProductBySlug = async (req: Request, res: Response) => {
   const { slug } = req.params;
@@ -39,12 +39,12 @@ export const getProductBySlug = async (req: Request, res: Response) => {
   try {
     const product = await prisma.product.findUnique({
       where: {
-        slug, // ✅ utilise directement le champ slug (doit être @unique dans Prisma)
+        slug,
       },
       include: {
         partnerLinks: {
           include: {
-            partner: true, // ✅ inclure partenaire dans la fiche produit
+            partner: true,
           },
         },
       },
@@ -67,68 +67,43 @@ export const getProductBySlug = async (req: Request, res: Response) => {
  */
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    const {
-      id,
-      title,
-      description,
-      slug,
-      brand,
-      category,
-      tags,
-      images,
-      zones_dispo,
-      prices,
-      affiliate_url,
-      eco_score,
-      ai_confidence,
-      confidence_pct,
-      confidence_color,
-      verified_status,
-      resume_fr,
-      resume_en,
-      source,
-      external_id
-    } = req.body;
+    const data = req.body;
 
-    // Validation requise
-    if (!title || !description) {
-      res.status(400).json({ 
-        error: 'Champs requis manquants',
-        required: ['title', 'description']
-      });
+    // Validation de base
+    if (!data || typeof data !== 'object') {
+      res.status(400).json({ error: 'Corps de requête invalide' });
       return;
     }
 
-    // Génération slug automatique si pas fourni
-    const generatedSlug = slug || title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .substring(0, 50) + `-${Date.now()}`;
+    const now = new Date().toISOString();
 
-    // Création produit
+    // Génération slug automatique si pas fourni
+    const generatedSlug = data.slug || 
+      `${(data.title || 'produit').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
+
+    // Création produit avec valeurs par défaut
     const product = await prisma.product.create({
       data: {
-        id: id || `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        title: title.trim(),
-        description: description.trim(),
+        id: data.id || `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        title: data.title ?? 'Produit sans titre',
+        description: data.description ?? '',
         slug: generatedSlug,
-        brand: brand || null,
-        category: category || 'general',
-        tags: Array.isArray(tags) ? tags : [],
-        images: Array.isArray(images) ? images : [],
-        zones_dispo: Array.isArray(zones_dispo) ? zones_dispo : ['FR'],
-        prices: prices || {},
-        affiliate_url: affiliate_url || null,
-        eco_score: parseFloat(eco_score) || 0.5,
-        ai_confidence: parseFloat(ai_confidence) || 0.5,
-        confidence_pct: parseInt(confidence_pct) || 50,
-        confidence_color: confidence_color || 'orange',
-        verified_status: verified_status || 'manual_review',
-        resume_fr: resume_fr || '',
-        resume_en: resume_en || '',
-        source: source || 'manual',
-        external_id: external_id || null
+        brand: data.brand ?? null,
+        category: data.category ?? 'générique',
+        tags: Array.isArray(data.tags) ? data.tags : [],
+        images: Array.isArray(data.images) ? data.images : [],
+        zones_dispo: Array.isArray(data.zones_dispo) ? data.zones_dispo : ['FR'],
+        prices: data.prices ?? {},
+        affiliate_url: data.affiliate_url ?? null,
+        eco_score: data.eco_score ?? 0.5,
+        ai_confidence: data.ai_confidence ?? 0.5,
+        confidence_pct: data.confidence_pct ?? 50,
+        confidence_color: data.confidence_color ?? 'orange',
+        verified_status: data.verified_status ?? 'manual_review',
+        resume_fr: data.resume_fr ?? null,
+        resume_en: data.resume_en ?? null,
+        enriched_at: data.enriched_at ? new Date(data.enriched_at) : new Date(),
+        created_at: data.created_at ? new Date(data.created_at) : new Date()
       },
       include: {
         partnerLinks: {
@@ -228,7 +203,7 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Suppression (les relations seront supprimées en cascade si configuré)
+    // Suppression
     await prisma.product.delete({
       where: { id }
     });
@@ -264,12 +239,12 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
 export const searchProducts = async (req: Request, res: Response): Promise<void> => {
   try {
     const { 
-      q,           // terme de recherche
-      category,    // filtrage par catégorie
-      verified,    // produits vérifiés uniquement
-      eco_min,     // score éco minimum
-      page = 1,    // pagination
-      limit = 20   // limite par page
+      q,           
+      category,    
+      verified,    
+      eco_min,     
+      page = 1,    
+      limit = 20   
     } = req.query;
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
@@ -304,9 +279,9 @@ export const searchProducts = async (req: Request, res: Response): Promise<void>
         skip,
         take: parseInt(limit as string),
         orderBy: [
-          { verified_status: 'desc' }, // Produits vérifiés en premier
-          { eco_score: 'desc' },       // Puis par score éco
-          { created_at: 'desc' }       // Puis par date
+          { verified_status: 'desc' },
+          { eco_score: 'desc' },
+          { created_at: 'desc' }
         ],
         include: {
           partnerLinks: {
@@ -356,20 +331,13 @@ export const getProductStats = async (req: Request, res: Response): Promise<void
       averageEcoScore,
       topCategories
     ] = await Promise.all([
-      // Total produits
       prisma.product.count(),
-      
-      // Produits vérifiés
       prisma.product.count({
         where: { verified_status: 'verified' }
       }),
-      
-      // Score éco moyen
       prisma.product.aggregate({
         _avg: { eco_score: true }
       }),
-      
-      // Top catégories
       prisma.product.groupBy({
         by: ['category'],
         _count: { category: true },

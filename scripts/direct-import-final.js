@@ -282,10 +282,9 @@ async function runDirectImport() {
       transformProduct(product, index)
     );
     
-    // 3. Sauvegarde base de données (test avec 1 produit d'abord)
-    console.log('\n🧪 Test avec 1 produit d\'abord...');
-    const testProducts = enrichedProducts.slice(0, 1);
-    const savedCount = await saveToDatabase(testProducts);
+    // 3. Sauvegarde base de données (IMPORT COMPLET)
+    console.log('\n💾 Import complet de tous les produits...');
+    const savedCount = await saveToDatabase(enrichedProducts);
     
     // 4. Indexation Algolia
     if (savedCount > 0) {
