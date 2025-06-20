@@ -6,14 +6,12 @@ const router = Router();
 
 /**
  * POST /api/eco-score/update-all
- * Met à jour tous les scores écologiques avec l'IA
  */
-router.post('/eco-score/update-all', async (req: Request, res: Response) => {
+router.post('/eco-score/update-all', async (_req: Request, res: Response) => {
   try {
     console.log('🌱 Démarrage mise à jour globale des eco_scores...');
-    
     const result = await EcoScoreService.updateAllEcoScores();
-    
+
     res.json({
       success: true,
       message: `Scores écologiques mis à jour avec succès`,
@@ -24,7 +22,6 @@ router.post('/eco-score/update-all', async (req: Request, res: Response) => {
       },
       timestamp: new Date().toISOString()
     });
-    
   } catch (error) {
     console.error('❌ Erreur update-all eco-scores:', error);
     res.status(500).json({
@@ -37,44 +34,33 @@ router.post('/eco-score/update-all', async (req: Request, res: Response) => {
 
 /**
  * POST /api/eco-score/update/:productId
- * Met à jour le score d'un produit spécifique
  */
 router.post('/eco-score/update/:productId', async (req: Request, res: Response) => {
   try {
     const { productId } = req.params;
-    
     if (!productId) {
-      return res.status(400).json({
-        success: false,
-        error: 'ID produit requis'
-      });
+      return res.status(400).json({ success: false, error: 'ID produit requis' });
     }
-    
+
     console.log(`🌱 Mise à jour eco_score pour produit: ${productId}`);
-    
     const ecoScore = await EcoScoreService.updateProductEcoScore(productId);
-    
+
     res.json({
       success: true,
       message: 'Score écologique mis à jour',
       data: {
         productId,
         eco_score: ecoScore,
-        eco_score_percentage: Math.round(ecoScore * 100)
+        eco_score_percentage: Math.round(Number(ecoScore) * 100)
       },
       timestamp: new Date().toISOString()
     });
-    
   } catch (error) {
     console.error(`❌ Erreur update eco-score produit ${req.params.productId}:`, error);
-    
     if (error instanceof Error && error.message.includes('non trouvé')) {
-      return res.status(404).json({
-        success: false,
-        error: 'Produit non trouvé'
-      });
+      return res.status(404).json({ success: false, error: 'Produit non trouvé' });
     }
-    
+
     res.status(500).json({
       success: false,
       error: 'Erreur lors de la mise à jour du score',
@@ -85,12 +71,11 @@ router.post('/eco-score/update/:productId', async (req: Request, res: Response) 
 
 /**
  * POST /api/eco-score/calculate
- * Calcule le score d'un produit sans l'enregistrer
  */
 router.post('/eco-score/calculate', async (req: Request, res: Response) => {
   try {
     const { title, description, brand, category, tags } = req.body;
-    
+
     if (!title || !description) {
       return res.status(400).json({
         success: false,
@@ -99,9 +84,8 @@ router.post('/eco-score/calculate', async (req: Request, res: Response) => {
         optional_fields: ['brand', 'category', 'tags']
       });
     }
-    
+
     console.log(`🌱 Calcul eco_score pour: ${title}`);
-    
     const ecoScore = await EcoScoreService.calculateEcoScore({
       title,
       description,
@@ -109,13 +93,13 @@ router.post('/eco-score/calculate', async (req: Request, res: Response) => {
       category: category || '',
       tags: Array.isArray(tags) ? tags : []
     });
-    
+
     res.json({
       success: true,
       message: 'Score écologique calculé',
       data: {
         eco_score: ecoScore,
-        eco_score_percentage: Math.round(ecoScore * 100),
+        eco_score_percentage: Math.round(Number(ecoScore) * 100),
         product_preview: {
           title,
           brand: brand || 'Non spécifié',
@@ -124,7 +108,6 @@ router.post('/eco-score/calculate', async (req: Request, res: Response) => {
       },
       timestamp: new Date().toISOString()
     });
-    
   } catch (error) {
     console.error('❌ Erreur calcul eco-score:', error);
     res.status(500).json({
@@ -137,28 +120,20 @@ router.post('/eco-score/calculate', async (req: Request, res: Response) => {
 
 /**
  * GET /api/eco-score/stats
- * Statistiques des scores écologiques
  */
-router.get('/eco-score/stats', async (req: Request, res: Response) => {
+router.get('/eco-score/stats', async (_req: Request, res: Response) => {
   try {
     const { PrismaClient } = await import('@prisma/client');
     const prisma = new PrismaClient();
-    
+
     const [
       totalProducts,
       avgScore,
       scoreDistribution,
       recentUpdates
     ] = await Promise.all([
-      // Total des produits
       prisma.product.count(),
-      
-      // Score moyen
-      prisma.product.aggregate({
-        _avg: { eco_score: true }
-      }),
-      
-      // Distribution des scores
+      prisma.product.aggregate({ _avg: { eco_score: true } }),
       prisma.$queryRaw`
         SELECT 
           CASE 
@@ -174,12 +149,10 @@ router.get('/eco-score/stats', async (req: Request, res: Response) => {
         GROUP BY score_range
         ORDER BY MIN(eco_score) DESC
       `,
-      
-      // Mises à jour récentes
       prisma.product.findMany({
         where: {
           enriched_at: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Dernières 24h
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
           }
         },
         select: {
@@ -192,26 +165,25 @@ router.get('/eco-score/stats', async (req: Request, res: Response) => {
         take: 10
       })
     ]);
-    
+
     await prisma.$disconnect();
-    
+
     res.json({
       success: true,
       data: {
         overview: {
           total_products: totalProducts,
           average_score: avgScore._avg.eco_score || 0,
-          average_percentage: Math.round((avgScore._avg.eco_score || 0) * 100)
+          average_percentage: Math.round(Number(avgScore._avg.eco_score || 0) * 100)
         },
         distribution: scoreDistribution,
         recent_updates: recentUpdates.map(product => ({
           ...product,
-          eco_score_percentage: Math.round((product.eco_score || 0) * 100)
+          eco_score_percentage: Math.round(Number(product.eco_score || 0) * 100)
         }))
       },
       timestamp: new Date().toISOString()
     });
-    
   } catch (error) {
     console.error('❌ Erreur stats eco-score:', error);
     res.status(500).json({
@@ -223,9 +195,8 @@ router.get('/eco-score/stats', async (req: Request, res: Response) => {
 
 /**
  * GET /api/eco-score/test
- * Test rapide du service
  */
-router.get('/eco-score/test', async (req: Request, res: Response) => {
+router.get('/eco-score/test', async (_req: Request, res: Response) => {
   try {
     const testProduct = {
       title: 'Savon Bio Artisanal',
@@ -234,23 +205,21 @@ router.get('/eco-score/test', async (req: Request, res: Response) => {
       category: 'Cosmétiques',
       tags: ['bio', 'naturel', 'artisanal', 'zéro-déchet']
     };
-    
+
     console.log('🧪 Test du service EcoScore...');
-    
     const ecoScore = await EcoScoreService.calculateEcoScore(testProduct);
-    
+
     res.json({
       success: true,
       message: 'Test du service EcoScore réussi',
       test_product: testProduct,
       calculated_score: {
         eco_score: ecoScore,
-        eco_score_percentage: Math.round(ecoScore * 100)
+        eco_score_percentage: Math.round(Number(ecoScore) * 100)
       },
       service_status: 'Opérationnel',
       timestamp: new Date().toISOString()
     });
-    
   } catch (error) {
     console.error('❌ Erreur test eco-score:', error);
     res.status(500).json({
