@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import productRoutes from './routes/product.routes';
 import healthRouter from './routes/health.routes';
 import partnerRoutes from './routes/partner.routes';
+import ecoScoreRoutes from './routes/eco-score.routes'; // ✅ AJOUT
 
 dotenv.config();
 
@@ -44,9 +45,11 @@ app.use(express.json());
 // Routes
 app.use('/api', productRoutes);
 app.use('/api', partnerRoutes);
+app.use('/api', ecoScoreRoutes); // ✅ AJOUT
 app.use('/', healthRouter);
 
 console.log('✅ Routes de tracking partenaire activées');
+console.log('✅ Routes de score écologique IA activées'); // ✅ AJOUT
 console.log('✅ CORS configuré pour:', allowedOrigins);
 console.log('✅ Base de données:', process.env.DATABASE_URL ? 'connectée' : 'non configurée');
 
@@ -66,6 +69,11 @@ app.get('/', (_req, res) => {
       'PUT /api/products/:id',
       'DELETE /api/products/:id',
       'GET /api/track/:id',
+      'POST /api/eco-score/calculate',         // ✅ AJOUT
+      'POST /api/eco-score/update/:productId', // ✅ AJOUT
+      'POST /api/eco-score/update-all',        // ✅ AJOUT
+      'GET /api/eco-score/stats',              // ✅ AJOUT
+      'GET /api/eco-score/test',               // ✅ AJOUT
       'GET /health'
     ],
     timestamp: new Date().toISOString()
