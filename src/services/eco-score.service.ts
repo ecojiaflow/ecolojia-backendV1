@@ -1,243 +1,160 @@
-// ✅ FICHIER CORRIGÉ : src/controllers/product.controller.ts
+// ✅ FICHIER CORRIGÉ : src/services/eco-score.service.ts
 
-import { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
-import { EcoScoreService } from "../services/eco-score.service";
+import { PrismaClient } from "@prisma/client";
 
-// 🔍 GET /api/products
-export const getAllProducts = async (req: Request, res: Response) => {
-  try {
-    const products = await prisma.product.findMany({
-      orderBy: { created_at: "desc" },
-      include: { partnerLinks: { include: { partner: true } } },
-    });
-    res.json(products);
-  } catch (error) {
-    console.error("❌ getAllProducts:", error);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
-};
+const prisma = new PrismaClient();
 
-// 🔍 GET /api/products/:slug
-export const getProductBySlug = async (req: Request, res: Response) => {
-  const slug = req.params.slug?.trim();
-  if (!slug) return res.status(400).json({ error: "Slug manquant" });
+interface ProductAnalysis {
+  title: string;
+  description: string;
+  brand?: string;
+  category?: string;
+  tags: string[];
+}
 
-  try {
-    const product = await prisma.product.findFirst({
-      where: { slug },
-      include: { partnerLinks: { include: { partner: true } } },
-    });
-    if (!product) return res.status(404).json({ error: "Produit non trouvé" });
-    res.json(product);
-  } catch (error) {
-    console.error("❌ getProductBySlug:", error);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
-};
+export class EcoScoreService {
+  static async calculateEcoScore(productData: ProductAnalysis): Promise<number> {
+    try {
+      console.log("🌱 Calcul eco_score pour:", productData.title);
 
-// ➕ POST /api/products
-export const createProduct = async (req: Request, res: Response) => {
-  try {
-    const data = req.body ?? {};
-    if (typeof data !== "object") return res.status(400).json({ error: "Corps invalide" });
+      const text = `${productData.title} ${productData.description} ${productData.brand || ''} ${productData.tags.join(" ")}`.toLowerCase();
 
-    const slug =
-      data.slug || `${(data.title || "produit").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
+      let score = 0.5;
 
-    const eco_score = await EcoScoreService.calculateEcoScore({
-      title: data.title,
-      description: data.description,
-      brand: data.brand,
-      category: data.category,
-      tags: data.tags ?? [],
-    });
+      score += EcoScoreService.analyzeMaterials(text);
+      score += EcoScoreService.analyzeCertifications(text);
+      score += EcoScoreService.analyzeOrigin(text);
+      score += EcoScoreService.analyzeDurability(text);
+      score -= EcoScoreService.analyzePenalties(text);
 
-    const product = await prisma.product.create({
-      data: {
-        id: data.id || `prod_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-        title: data.title ?? "Produit sans titre",
-        description: data.description ?? "",
-        slug,
-        brand: data.brand ?? null,
-        category: data.category ?? "générique",
-        tags: Array.isArray(data.tags) ? data.tags : [],
-        images: Array.isArray(data.images) ? data.images : [],
-        zones_dispo: Array.isArray(data.zones_dispo) ? data.zones_dispo : ["FR"],
-        prices: data.prices ?? {},
-        affiliate_url: data.affiliate_url ?? null,
-        eco_score,
-        ai_confidence: data.ai_confidence ?? 0.5,
-        confidence_pct: data.confidence_pct ?? 50,
-        confidence_color: data.confidence_color ?? "orange",
-        verified_status: data.verified_status ?? "manual_review",
-        resume_fr: data.resume_fr ?? null,
-        resume_en: data.resume_en ?? null,
-        enriched_at: new Date(),
-        created_at: new Date(),
-      },
-      include: { partnerLinks: { include: { partner: true } } },
-    });
-    res.status(201).json(product);
-  } catch (error: any) {
-    if (error.code === "P2002") return res.status(409).json({ error: "Produit existe déjà" });
-    console.error("❌ createProduct:", error);
-    res.status(500).json({ error: "Erreur création" });
-  }
-};
+      const finalScore = Math.max(0, Math.min(1, score));
 
-// ✏️ PUT /api/products/:id
-export const updateProduct = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  if (!id) return res.status(400).json({ error: "ID manquant" });
-
-  try {
-    const data = req.body ?? {};
-    if (typeof data !== "object") return res.status(400).json({ error: "Corps invalide" });
-
-    // Mise à jour du eco_score si les données pertinentes ont changé
-    let eco_score = data.eco_score;
-    if (data.title || data.description || data.brand || data.category || data.tags) {
-      eco_score = await EcoScoreService.calculateEcoScore({
-        title: data.title,
-        description: data.description,
-        brand: data.brand,
-        category: data.category,
-        tags: data.tags ?? [],
-      });
+      console.log(`✅ Score calculé: ${(finalScore * 100).toFixed(0)}% pour ${productData.title}`);
+      return finalScore;
+    } catch (error) {
+      console.error("❌ Erreur calcul eco_score:", error);
+      return 0.5;
     }
-
-    const product = await prisma.product.update({
-      where: { id },
-      data: {
-        title: data.title,
-        description: data.description,
-        slug: data.slug,
-        brand: data.brand,
-        category: data.category,
-        tags: Array.isArray(data.tags) ? data.tags : undefined,
-        images: Array.isArray(data.images) ? data.images : undefined,
-        zones_dispo: Array.isArray(data.zones_dispo) ? data.zones_dispo : undefined,
-        prices: data.prices,
-        affiliate_url: data.affiliate_url,
-        eco_score,
-        ai_confidence: data.ai_confidence,
-        confidence_pct: data.confidence_pct,
-        confidence_color: data.confidence_color,
-        verified_status: data.verified_status,
-        resume_fr: data.resume_fr,
-        resume_en: data.resume_en,
-        enriched_at: new Date(),
-      },
-      include: { partnerLinks: { include: { partner: true } } },
-    });
-    res.json(product);
-  } catch (error: any) {
-    if (error.code === "P2025") return res.status(404).json({ error: "Produit non trouvé" });
-    console.error("❌ updateProduct:", error);
-    res.status(500).json({ error: "Erreur mise à jour" });
   }
-};
 
-// 🗑️ DELETE /api/products/:id
-export const deleteProduct = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  if (!id) return res.status(400).json({ error: "ID manquant" });
+  static analyzeMaterials(text: string): number {
+    let score = 0;
+    const excellent = ["bio", "organic", "bambou", "chanvre", "coton bio", "recyclé", "biodégradable"];
+    const good = ["naturel", "bois", "liège", "zéro déchet", "réutilisable"];
+    const ok = ["durable", "écologique", "local"];
 
-  try {
-    await prisma.product.delete({ where: { id } });
-    res.json({ message: "Produit supprimé" });
-  } catch (error: any) {
-    if (error.code === "P2025") return res.status(404).json({ error: "Produit non trouvé" });
-    console.error("❌ deleteProduct:", error);
-    res.status(500).json({ error: "Erreur suppression" });
+    excellent.forEach(m => { if (text.includes(m)) score += 0.05; });
+    good.forEach(m => { if (text.includes(m)) score += 0.03; });
+    ok.forEach(m => { if (text.includes(m)) score += 0.01; });
+
+    return Math.min(score, 0.3);
   }
-};
 
-// 🔍 GET /api/products/search
-export const searchProducts = async (req: Request, res: Response) => {
-  try {
-    const { q = "", category = "", min_score = "0", max_score = "1" } = req.query as {
-      q?: string;
-      category?: string;
-      min_score?: string;
-      max_score?: string;
-    };
+  static analyzeCertifications(text: string): number {
+    let score = 0;
+    const certs = ["ecocert", "ab", "cosmebio", "fair trade", "fsc"];
+    certs.forEach(cert => { if (text.includes(cert)) score += 0.04; });
 
-    const minScore = parseFloat(min_score) || 0;
-    const maxScore = parseFloat(max_score) || 1;
+    const found = certs.filter(c => text.includes(c));
+    if (found.length >= 2) score += 0.02;
+    if (found.length >= 3) score += 0.02;
 
-    const products = await prisma.product.findMany({
-      where: {
-        AND: [
-          q ? {
-            OR: [
-              { title: { contains: q, mode: "insensitive" } },
-              { description: { contains: q, mode: "insensitive" } },
-              { brand: { contains: q, mode: "insensitive" } },
-            ]
-          } : {},
-          category ? { category: { equals: category, mode: "insensitive" } } : {},
-          {
-            eco_score: {
-              gte: minScore,
-              lte: maxScore,
-            }
-          }
-        ]
-      },
-      orderBy: { eco_score: "desc" },
-      include: { partnerLinks: { include: { partner: true } } },
-    });
-
-    res.json({
-      products,
-      count: products.length,
-      filters: { q, category, min_score: minScore, max_score: maxScore }
-    });
-  } catch (error) {
-    console.error("❌ searchProducts:", error);
-    res.status(500).json({ error: "Erreur recherche" });
+    return Math.min(score, 0.2);
   }
-};
 
-// 📊 GET /api/products/stats
-export const getProductStats = async (req: Request, res: Response) => {
-  try {
-    const [
-      totalProducts,
-      avgEcoScore,
-      categoryStats,
-      topProducts
-    ] = await Promise.all([
-      prisma.product.count(),
-      prisma.product.aggregate({ _avg: { eco_score: true } }),
-      prisma.product.groupBy({
-        by: ["category"],
-        _count: { category: true },
-        orderBy: { _count: { category: "desc" } },
-        take: 10
-      }),
-      prisma.product.findMany({
-        orderBy: { eco_score: "desc" },
-        take: 5,
+  static analyzeOrigin(text: string): number {
+    let score = 0;
+    const local = ["made in france", "fabrication française", "local", "européen"];
+    const transport = ["transport vert", "carbone neutre"];
+
+    local.forEach(o => { if (text.includes(o)) score += 0.03; });
+    transport.forEach(t => { if (text.includes(t)) score += 0.02; });
+
+    return Math.min(score, 0.15);
+  }
+
+  static analyzeDurability(text: string): number {
+    let score = 0;
+    const keywords = ["durable", "résistant", "réparable", "solide"];
+    keywords.forEach(k => { if (text.includes(k)) score += 0.015; });
+    return Math.min(score, 0.1);
+  }
+
+  static analyzePenalties(text: string): number {
+    let penalties = 0;
+    const badMaterials = ["plastique", "polyester", "nylon", "pvc"];
+    const badPractices = ["jetable", "usage unique", "non recyclable"];
+    const farOrigin = ["chine", "bangladesh"];
+
+    badMaterials.forEach(m => { if (text.includes(m)) penalties += 0.05; });
+    badPractices.forEach(p => { if (text.includes(p)) penalties += 0.03; });
+    farOrigin.forEach(o => { if (text.includes(o)) penalties += 0.02; });
+
+    return Math.min(penalties, 0.25);
+  }
+
+  static async updateProductEcoScore(productId: string): Promise<number> {
+    try {
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
         select: {
           id: true,
           title: true,
-          eco_score: true,
-          category: true
+          description: true,
+          brand: true,
+          category: true,
+          tags: true
         }
-      })
-    ]);
+      });
 
-    res.json({
-      total_products: totalProducts,
-      average_eco_score: avgEcoScore._avg.eco_score || 0,
-      categories: categoryStats,
-      top_products: topProducts
-    });
-  } catch (error) {
-    console.error("❌ getProductStats:", error);
-    res.status(500).json({ error: "Erreur statistiques" });
+      if (!product) throw new Error(`Produit ${productId} non trouvé`);
+
+      const ecoScore = await EcoScoreService.calculateEcoScore({
+        title: product.title || '',
+        description: product.description || '',
+        brand: product.brand || '',
+        category: product.category || '',
+        tags: Array.isArray(product.tags) ? product.tags : []
+      });
+
+      await prisma.product.update({
+        where: { id: productId },
+        data: {
+          eco_score: ecoScore,
+          enriched_at: new Date()
+        }
+      });
+
+      return ecoScore;
+    } catch (error) {
+      console.error(`❌ Erreur update eco_score produit ${productId}:`, error);
+      throw error;
+    }
   }
-};
+
+  static async updateAllEcoScores(): Promise<{ updated: number; errors: number }> {
+    try {
+      const products = await prisma.product.findMany({
+        select: { id: true, title: true, description: true, brand: true, category: true, tags: true }
+      });
+
+      let updated = 0;
+      let errors = 0;
+
+      for (const product of products) {
+        try {
+          await EcoScoreService.updateProductEcoScore(product.id);
+          updated++;
+        } catch (error) {
+          console.error("❌ Erreur update produit:", error);
+          errors++;
+        }
+      }
+
+      return { updated, errors };
+    } catch (error) {
+      console.error("❌ Erreur updateAllEcoScores:", error);
+      throw error;
+    }
+  }
+}
