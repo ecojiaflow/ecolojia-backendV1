@@ -1,7 +1,7 @@
 // ✅ FICHIER COMPLET : src/services/similar.service.ts
 
 import { productsIndex, AlgoliaProduct, defaultSearchParams } from '../lib/algolia';
-import { callDeepSeek } from '../lib/deepseek';
+import deepSeekClient from '../lib/deepseek';
 import { prisma } from '../lib/prisma';
 
 interface SimilarProduct {
@@ -98,15 +98,15 @@ export class SimilarService {
 
       const searchResult = await productsIndex.search('', searchParams);
 
-      return searchResult.hits.map((hit: AlgoliaProduct) => ({
-        id: hit.id,
-        title: hit.title,
-        description: hit.description,
+      return searchResult.hits.map((hit: any) => ({
+        id: hit.id || hit.objectID,
+        title: hit.title || '',
+        description: hit.description || '',
         brand: hit.brand,
-        category: hit.category,
+        category: hit.category || '',
         eco_score: hit.eco_score || 0,
         images: hit.images || [],
-        slug: hit.slug,
+        slug: hit.slug || '',
         source: 'algolia' as const
       }));
 
@@ -157,25 +157,23 @@ Format JSON uniquement:
 [{"title":"...","brand":"...","description":"...","eco_score":0.75}]`;
 
       console.log('🧠 Appel IA DeepSeek pour suggestions similaires...');
-      const aiResponse = await callDeepSeek(prompt);
+      const aiResponse = await deepSeekClient.getSimilar(product);
       
-      if (!aiResponse) {
+      if (!aiResponse || aiResponse.length === 0) {
         console.log('🧠 Suggestions IA simulées pour :', product.title);
         return this.getFallbackSuggestions(product, limit);
       }
 
-      // Parser la réponse IA
-      const suggestions = JSON.parse(aiResponse);
-      
-      return suggestions.map((suggestion: any, index: number) => ({
+      // Utiliser directement la réponse du client DeepSeek
+      return aiResponse.slice(0, limit).map((suggestion: any, index: number) => ({
         id: `ai_similar_${product.id}_${index}`,
-        title: suggestion.title,
-        description: suggestion.description,
-        brand: suggestion.brand,
+        title: suggestion.title || suggestion.name || `Produit similaire ${index + 1}`,
+        description: suggestion.description || 'Produit écologique similaire',
+        brand: suggestion.brand || 'Marque éco',
         category: product.category,
         eco_score: suggestion.eco_score || 0.6,
         images: [],
-        slug: `ai-${suggestion.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        slug: `ai-${(suggestion.title || `produit-${index}`).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
         source: 'ai' as const
       }));
 
