@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 
 import productRoutes from './routes/product.routes';
-import healthRouter  from './routes/health.routes';
+import healthRouter from './routes/health.routes';
 import partnerRoutes from './routes/partner.routes';
 
 dotenv.config();
@@ -13,7 +13,14 @@ dotenv.config();
 const app: Application = express();
 
 // Configuration CORS
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'https://ecolojia.com',
+  'https://www.ecolojia.com',
+  'https://ecolojia.vercel.app'
+];
 
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
@@ -37,7 +44,7 @@ app.use(express.json());
 // Routes
 app.use('/api', productRoutes);
 app.use('/api', partnerRoutes);
-app.use('/',     healthRouter);
+app.use('/', healthRouter);
 
 console.log('✅ Routes de tracking partenaire activées');
 console.log('✅ CORS configuré pour:', allowedOrigins);
@@ -48,12 +55,12 @@ app.get('/', (_req, res) => {
   res.json({
     message: 'Ecolojia API',
     version: '1.0.0',
-    status : 'operational',
+    status: 'operational',
     environment: process.env.NODE_ENV || 'development',
     endpoints: [
       'GET /api/products',
       'GET /api/products/search',
-      'GET /api/products/stats', 
+      'GET /api/products/stats',
       'GET /api/products/:slug',
       'POST /api/products',
       'PUT /api/products/:id',
