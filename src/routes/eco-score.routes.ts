@@ -1,41 +1,96 @@
-// Routes pour le système de score écologique IA
-import { Router, Request, Response } from 'express';
+// ✅ FICHIER CORRIGÉ : src/routes/eco-score.routes.ts
+
+import { Router, Request, Response, NextFunction } from 'express';
 import { EcoScoreService } from '../services/eco-score.service';
 
 const router = Router();
 
+// Middleware d'authentification pour les tâches cron
+const cronAuth = (req: Request, res: Response, next: NextFunction) => {
+  const cronKey = req.headers['x-cron-key'] as string;
+  const expectedKey = process.env.CRON_KEY;
+
+  console.log('🔐 Auth cron - Clé reçue:', cronKey ? 'présente' : 'absente');
+  console.log('🔐 Auth cron - Clé attendue:', expectedKey ? 'configurée' : 'manquante');
+
+  if (!expectedKey) {
+    console.error('❌ CRON_KEY manquante dans l\'environnement');
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Configuration serveur manquante',
+      debug: 'CRON_KEY non définie'
+    });
+  }
+
+  if (!cronKey) {
+    console.error('❌ Header x-cron-key manquant');
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Clé d\'authentification manquante',
+      debug: 'Header x-cron-key requis'
+    });
+  }
+
+  if (cronKey !== expectedKey) {
+    console.error('❌ Clé d\'authentification invalide');
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Clé d\'authentification invalide',
+      debug: 'x-cron-key incorrecte'
+    });
+  }
+
+  console.log('✅ Authentification cron réussie');
+  next();
+};
+
 /**
  * POST /api/eco-score/update-all
+ * Route pour le cron nocturne - met à jour tous les eco_scores
+ * PROTECTION: Nécessite header x-cron-key
  */
-router.post('/eco-score/update-all', async (_req: Request, res: Response) => {
+router.post('/update-all', cronAuth, async (req: Request, res: Response) => {
   try {
-    console.log('🌱 Démarrage mise à jour globale des eco_scores...');
+    console.log('🌱 [CRON] Démarrage mise à jour globale des eco_scores...');
+    const startTime = Date.now();
+    
     const result = await EcoScoreService.updateAllEcoScores();
+    
+    const duration = Date.now() - startTime;
+    const message = `✅ [CRON] Mise à jour terminée en ${duration}ms`;
+    
+    console.log(message);
+    console.log(`📊 Résultats: ${result.updated} mis à jour, ${result.errors} erreurs`);
 
     res.json({
       success: true,
-      message: `Scores écologiques mis à jour avec succès`,
+      message: 'Scores écologiques mis à jour avec succès',
       stats: {
         updated: result.updated,
         errors: result.errors,
-        total: result.updated + result.errors
+        total: result.updated + result.errors,
+        duration_ms: duration
       },
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('❌ Erreur update-all eco-scores:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
+    console.error('❌ [CRON] Erreur mise à jour globale:', error);
+    
     res.status(500).json({
       success: false,
       error: 'Erreur lors de la mise à jour des scores',
-      message: error instanceof Error ? error.message : 'Erreur inconnue'
+      message: errorMessage,
+      timestamp: new Date().toISOString()
     });
   }
 });
 
 /**
  * POST /api/eco-score/update/:productId
+ * Mise à jour d'un seul produit (pour tests/debug)
  */
-router.post('/eco-score/update/:productId', async (req: Request, res: Response) => {
+router.post('/update/:productId', async (req: Request, res: Response) => {
   try {
     const { productId } = req.params;
     if (!productId) {
@@ -71,8 +126,9 @@ router.post('/eco-score/update/:productId', async (req: Request, res: Response) 
 
 /**
  * POST /api/eco-score/calculate
+ * Calcul direct d'un score (pour tests/preview)
  */
-router.post('/eco-score/calculate', async (req: Request, res: Response) => {
+router.post('/calculate', async (req: Request, res: Response) => {
   try {
     const { title, description, brand, category, tags } = req.body;
 
@@ -119,89 +175,15 @@ router.post('/eco-score/calculate', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/eco-score/stats
- */
-router.get('/eco-score/stats', async (_req: Request, res: Response) => {
-  try {
-    const { PrismaClient } = await import('@prisma/client');
-    const prisma = new PrismaClient();
-
-    const [
-      totalProducts,
-      avgScore,
-      scoreDistribution,
-      recentUpdates
-    ] = await Promise.all([
-      prisma.product.count(),
-      prisma.product.aggregate({ _avg: { eco_score: true } }),
-      prisma.$queryRaw`
-        SELECT 
-          CASE 
-            WHEN eco_score >= 0.8 THEN 'Excellent (80-100%)'
-            WHEN eco_score >= 0.6 THEN 'Très bon (60-79%)'
-            WHEN eco_score >= 0.4 THEN 'Bon (40-59%)'
-            WHEN eco_score >= 0.2 THEN 'Moyen (20-39%)'
-            ELSE 'Faible (0-19%)'
-          END as score_range,
-          COUNT(*) as count
-        FROM "Product" 
-        WHERE eco_score IS NOT NULL
-        GROUP BY score_range
-        ORDER BY MIN(eco_score) DESC
-      `,
-      prisma.product.findMany({
-        where: {
-          enriched_at: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
-          }
-        },
-        select: {
-          id: true,
-          title: true,
-          eco_score: true,
-          enriched_at: true
-        },
-        orderBy: { enriched_at: 'desc' },
-        take: 10
-      })
-    ]);
-
-    await prisma.$disconnect();
-
-    res.json({
-      success: true,
-      data: {
-        overview: {
-          total_products: totalProducts,
-          average_score: avgScore._avg.eco_score || 0,
-          average_percentage: Math.round(Number(avgScore._avg.eco_score || 0) * 100)
-        },
-        distribution: scoreDistribution,
-        recent_updates: recentUpdates.map(product => ({
-          ...product,
-          eco_score_percentage: Math.round(Number(product.eco_score || 0) * 100)
-        }))
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('❌ Erreur stats eco-score:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Erreur lors de la récupération des statistiques'
-    });
-  }
-});
-
-/**
  * GET /api/eco-score/test
+ * Test du service (sans auth)
  */
-router.get('/eco-score/test', async (_req: Request, res: Response) => {
+router.get('/test', async (req: Request, res: Response) => {
   try {
     const testProduct = {
-      title: 'Savon Bio Artisanal',
+      title: 'Savon Bio Artisanal Test',
       description: 'Savon naturel à base d\'huile d\'olive bio, fabriqué en France, certifié Ecocert, zéro déchet',
-      brand: 'Savonnerie Française',
+      brand: 'Savonnerie Test',
       category: 'Cosmétiques',
       tags: ['bio', 'naturel', 'artisanal', 'zéro-déchet']
     };
@@ -218,6 +200,10 @@ router.get('/eco-score/test', async (_req: Request, res: Response) => {
         eco_score_percentage: Math.round(Number(ecoScore) * 100)
       },
       service_status: 'Opérationnel',
+      environment_check: {
+        cron_key_configured: !!process.env.CRON_KEY,
+        node_env: process.env.NODE_ENV || 'development'
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error) {

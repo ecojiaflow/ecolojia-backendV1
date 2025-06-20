@@ -1,4 +1,4 @@
-// src/app.ts
+// ✅ FICHIER CORRIGÉ : src/app.ts
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 import productRoutes from './routes/product.routes';
 import healthRouter from './routes/health.routes';
 import partnerRoutes from './routes/partner.routes';
-import ecoScoreRoutes from './routes/eco-score.routes'; // ✅ AJOUT
+import ecoScoreRoutes from './routes/eco-score.routes';
 
 dotenv.config();
 
@@ -34,7 +34,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-cron-key'] // 👈 AJOUT header cron
 };
 
 // Middlewares
@@ -45,11 +45,11 @@ app.use(express.json());
 // Routes
 app.use('/api', productRoutes);
 app.use('/api', partnerRoutes);
-app.use('/api', ecoScoreRoutes); // ✅ AJOUT
+app.use('/api/eco-score', ecoScoreRoutes); // 👈 CORRECTION: préfixe /eco-score
 app.use('/', healthRouter);
 
 console.log('✅ Routes de tracking partenaire activées');
-console.log('✅ Routes de score écologique IA activées'); // ✅ AJOUT
+console.log('✅ Routes de score écologique IA activées');
 console.log('✅ CORS configuré pour:', allowedOrigins);
 console.log('✅ Base de données:', process.env.DATABASE_URL ? 'connectée' : 'non configurée');
 
@@ -65,15 +65,16 @@ app.get('/', (_req, res) => {
       'GET /api/products/search',
       'GET /api/products/stats',
       'GET /api/products/:slug',
+      'GET /api/products/:id/similar',
       'POST /api/products',
       'PUT /api/products/:id',
       'DELETE /api/products/:id',
       'GET /api/track/:id',
-      'POST /api/eco-score/calculate',         // ✅ AJOUT
-      'POST /api/eco-score/update/:productId', // ✅ AJOUT
-      'POST /api/eco-score/update-all',        // ✅ AJOUT
-      'GET /api/eco-score/stats',              // ✅ AJOUT
-      'GET /api/eco-score/test',               // ✅ AJOUT
+      'POST /api/eco-score/calculate',
+      'POST /api/eco-score/update/:productId',
+      'POST /api/eco-score/update-all',
+      'GET /api/eco-score/stats',
+      'GET /api/eco-score/test',
       'GET /health'
     ],
     timestamp: new Date().toISOString()
