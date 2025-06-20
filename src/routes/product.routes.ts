@@ -1,16 +1,27 @@
+// ✅ FICHIER COMPLET : src/routes/product.routes.ts
+
 import { Router } from "express";
 import {
-  getProduct,
+  getAllProducts,
+  getProductBySlug,
   createProduct,
   updateProduct,
-  deleteProduct
+  deleteProduct,
+  searchProducts,
+  getProductStats
 } from "../controllers/product.controller";
 import { getSimilarProducts } from "../controllers/similar.controller";
 
 const router = Router();
 
-// ✅ Route globale
-router.get("/products", getProduct);
+// ✅ Liste accueil complète
+router.get("/products", getAllProducts);
+
+// ✅ Recherche + filtres
+router.get("/products/search", searchProducts);
+
+// ✅ Statistiques rapides
+router.get("/products/stats", getProductStats);
 
 // ✅ Création produit
 router.post("/products", createProduct);
@@ -21,11 +32,10 @@ router.put("/products/:id", updateProduct);
 // ✅ Suppression
 router.delete("/products/:id", deleteProduct);
 
-// ✅ ⚠️ Placer cette route AVANT /products/:slug
+// ✅ Suggestions similaires ➜ doit être AVANT /:slug
 router.get("/products/:id/similar", getSimilarProducts);
 
-// ✅ Dernière : pour éviter qu’elle « bloque » les autres
-router.get("/products/:slug", getProduct);
+// ✅ Dernière route ➜ résolution par slug flexible
+router.get("/products/:slug", getProductBySlug);
 
 export default router;
-
