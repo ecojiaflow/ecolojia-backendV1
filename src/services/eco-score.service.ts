@@ -1,167 +1,189 @@
-// src/services/eco-score.service.ts
+// ✅ FICHIER CORRIGÉ : src/controllers/product.controller.ts
 
+import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
-import type { Product } from "@prisma/client";
-import deepSeekClient from "../lib/deepseek";
+import * as EcoScoreService from "../services/eco-score.service";
 
-interface ProductAnalysis {
-  title: string;
-  description: string;
-  brand?: string;
-  category?: string;
-  tags: string[];
-}
-
-interface EcoFields {
-  eco_score: number;
-  ai_confidence: number;
-  confidence_pct: number;
-}
-
-/**
- * Recalcule tous les champs IA d'un produit :
- * - DeepSeek en priorité
- * - fallback heuristique si l'API est indisponible
- */
-export async function recalculateEcoFields(product: Product): Promise<EcoFields> {
+// 🔍 GET /api/products
+export const getAllProducts = async (req: Request, res: Response) => {
   try {
-    const { eco_score, ai_confidence } = await deepSeekClient.calculate(product);
-    return {
-      eco_score,
-      ai_confidence,
-      confidence_pct: Math.round(ai_confidence * 100),
-    };
-  } catch (err) {
-    console.warn("⚠️ DeepSeek indisponible – fallback heuristique activé.");
+    const products = await prisma.product.findMany({
+      orderBy: { created_at: "desc" },
+      include: { partnerLinks: { include: { partner: true } } },
+    });
+    res.json(products);
+  } catch (error) {
+    console.error("❌ getAllProducts:", error);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+};
 
-    const eco_score = calculateEcoScore({
-      title: product.title,
-      description: product.description ?? "",
-      brand: (product as any).brand ?? "",
-      category: (product as any).category ?? "",
-      tags: product.tags ?? [],
+// 🔍 GET /api/products/:slug
+export const getProductBySlug = async (req: Request, res: Response) => {
+  const slug = req.params.slug?.trim();
+  if (!slug) return res.status(400).json({ error: "Slug manquant" });
+
+  try {
+    const product = await prisma.product.findFirst({
+      where: { slug },
+      include: { partnerLinks: { include: { partner: true } } },
+    });
+    if (!product) return res.status(404).json({ error: "Produit non trouvé" });
+    res.json(product);
+  } catch (error) {
+    console.error("❌ getProductBySlug:", error);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+};
+
+// ➕ POST /api/products
+export const createProduct = async (req: Request, res: Response) => {
+  try {
+    const data = req.body ?? {};
+    if (typeof data !== "object") return res.status(400).json({ error: "Corps invalide" });
+
+    const slug =
+      data.slug || `${(data.title || "produit").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
+
+    const eco_score = await EcoScoreService.calculateEcoScore({
+      title: data.title,
+      description: data.description,
+      brand: data.brand,
+      category: data.category,
+      tags: data.tags ?? [],
     });
 
-    return {
-      eco_score,
-      ai_confidence: 0.4,
-      confidence_pct: 40,
-    };
+    const product = await prisma.product.create({
+      data: {
+        id: data.id || `prod_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        title: data.title ?? "Produit sans titre",
+        description: data.description ?? "",
+        slug,
+        brand: data.brand ?? null,
+        category: data.category ?? "générique",
+        tags: Array.isArray(data.tags) ? data.tags : [],
+        images: Array.isArray(data.images) ? data.images : [],
+        zones_dispo: Array.isArray(data.zones_dispo) ? data.zones_dispo : ["FR"],
+        prices: data.prices ?? {},
+        affiliate_url: data.affiliate_url ?? null,
+        eco_score,
+        ai_confidence: data.ai_confidence ?? 0.5,
+        confidence_pct: data.confidence_pct ?? 50,
+        confidence_color: data.confidence_color ?? "orange",
+        verified_status: data.verified_status ?? "manual_review",
+        resume_fr: data.resume_fr ?? null,
+        resume_en: data.resume_en ?? null,
+        enriched_at: new Date(),
+        created_at: new Date(),
+      },
+      include: { partnerLinks: { include: { partner: true } } },
+    });
+    res.status(201).json(product);
+  } catch (error: any) {
+    if (error.code === "P2002") return res.status(409).json({ error: "Produit existe déjà" });
+    console.error("❌ createProduct:", error);
+    res.status(500).json({ error: "Erreur création" });
   }
-}
+};
 
-/**
- * Recalcule et met à jour les champs IA d'un produit spécifique
- */
-export async function updateProductEcoScore(productId: string): Promise<void> {
-  const product = await prisma.product.findUnique({ where: { id: productId } });
-  if (!product) throw new Error(`Produit ${productId} introuvable`);
-
-  const ecoFields = await recalculateEcoFields(product);
-
-  await prisma.product.update({
-    where: { id: productId },
-    data: {
-      ...ecoFields,
-      enriched_at: new Date(),
-    },
-  });
-
-  console.log(`✅ ${product.title} → ${Math.round(ecoFields.eco_score * 100)} %`);
-}
-
-/**
- * Recalcule les scores IA de tous les produits
- */
-export async function updateAllEcoScores(): Promise<{ updated: number; errors: number }> {
-  const products = await prisma.product.findMany({ select: { id: true } });
-
-  let updated = 0;
-  let errors = 0;
-
-  for (const { id } of products) {
-    try {
-      await updateProductEcoScore(id);
-      updated++;
-    } catch (e) {
-      console.error(`❌ Erreur produit ${id}:`, e);
-      errors++;
-    }
+// ✏️ PUT /api/products/:id
+const updateProduct = async (req: Request, res: Response) => {
+  try {
+    const product = await prisma.product.update({
+      where: { id: req.params.id },
+      data: req.body,
+      include: { partnerLinks: { include: { partner: true } } },
+    });
+    res.json(product);
+  } catch (error: any) {
+    if (error.code === "P2025") return res.status(404).json({ error: "Produit non trouvé" });
+    console.error("❌ updateProduct:", error);
+    res.status(500).json({ error: "Erreur mise à jour" });
   }
+};
 
-  return { updated, errors };
-}
+// 🗑 DELETE /api/products/:id
+const deleteProduct = async (req: Request, res: Response) => {
+  try {
+    await prisma.product.delete({ where: { id: req.params.id } });
+    res.json({ message: "Produit supprimé" });
+  } catch (error: any) {
+    if (error.code === "P2025") return res.status(404).json({ error: "Produit non trouvé" });
+    console.error("❌ deleteProduct:", error);
+    res.status(500).json({ error: "Erreur suppression" });
+  }
+};
 
-/* ---------- Fallback heuristique ---------- */
-export function calculateEcoScore(product: ProductAnalysis): number {
-  const text = `${product.title} ${product.description} ${product.brand ?? ""} ${product.tags.join(" ")}`.toLowerCase();
+// 🔎 GET /api/products/search
+const searchProducts = async (req: Request, res: Response) => {
+  try {
+    const { q, category, verified, eco_min, page = 1, limit = 20 } = req.query;
+    const skip = (+page - 1) * +limit;
 
-  let score = 0.5;
-  score += analyzeMaterials(text);
-  score += analyzeCertifications(text);
-  score += analyzeOrigin(text);
-  score += analyzeDurability(text);
-  score -= analyzePenalties(text);
+    const where: any = {};
+    if (q) where.OR = [
+      { title: { contains: q as string, mode: "insensitive" } },
+      { description: { contains: q as string, mode: "insensitive" } },
+      { brand: { contains: q as string, mode: "insensitive" } },
+    ];
+    if (category) where.category = category;
+    if (verified === "true") where.verified_status = "verified";
+    if (eco_min) where.eco_score = { gte: parseFloat(eco_min as string) };
 
-  return Math.max(0, Math.min(1, score));
-}
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        skip,
+        take: +limit,
+        orderBy: [
+          { verified_status: "desc" },
+          { eco_score: "desc" },
+          { created_at: "desc" },
+        ],
+        include: { partnerLinks: { include: { partner: true } } },
+      }),
+      prisma.product.count({ where }),
+    ]);
 
-function analyzeMaterials(text: string): number {
-  let s = 0;
-  const excellent = ["bio", "biologique", "organic", "bambou", "chanvre", "lin", "coton bio", "recyclé", "upcyclé", "compostable", "biodégradable"];
-  const good = ["naturel", "végétal", "bois", "liège", "fibres naturelles", "sans plastique", "zéro déchet", "réutilisable"];
-  const ok = ["durable", "écologique", "responsable", "éthique", "local", "artisanal", "fait main"];
+    res.json({ products, pagination: { page: +page, limit: +limit, total } });
+  } catch (error) {
+    console.error("❌ searchProducts:", error);
+    res.status(500).json({ error: "Erreur recherche" });
+  }
+};
 
-  excellent.forEach((m) => text.includes(m) && (s += 0.05));
-  good.forEach((m) => text.includes(m) && (s += 0.03));
-  ok.forEach((m) => text.includes(m) && (s += 0.01));
+// 📊 GET /api/products/stats
+const getProductStats = async (req: Request, res: Response) => {
+  try {
+    const [total, verified, avg, groups] = await Promise.all([
+      prisma.product.count(),
+      prisma.product.count({ where: { verified_status: "verified" } }),
+      prisma.product.aggregate({ _avg: { eco_score: true } }),
+      prisma.product.groupBy({
+        by: ["category"],
+        _count: { category: true },
+        take: 5,
+        orderBy: { _count: { category: "desc" } },
+      }),
+    ]);
 
-  return Math.min(0.3, s);
-}
+    res.json({
+      total,
+      verified,
+      verification_rate: total ? Math.round((verified / total) * 100) : 0,
+      average_eco_score: avg._avg.eco_score ?? 0,
+      top_categories: groups.map((g) => ({ category: g.category, count: g._count.category })),
+    });
+  } catch (error) {
+    console.error("❌ getProductStats:", error);
+    res.status(500).json({ error: "Erreur statistiques" });
+  }
+};
 
-function analyzeCertifications(text: string): number {
-  let s = 0;
-  const certs = ["ecocert", "ab", "cosmebio", "natrue", "bdih", "usda organic", "demeter", "fair trade", "commerce équitable", "cradle to cradle", "fsc", "pefc", "eu ecolabel", "soil association", "cosmos", "icea"];
-
-  certs.forEach((c) => text.includes(c) && (s += 0.04));
-  const count = certs.filter((c) => text.includes(c)).length;
-  if (count >= 2) s += 0.02;
-  if (count >= 3) s += 0.02;
-
-  return Math.min(0.2, s);
-}
-
-function analyzeOrigin(text: string): number {
-  let s = 0;
-  const veryLocal = ["france", "français", "made in france", "fabrication française", "artisan français", "produit français"];
-  const local = ["europe", "européen", "local", "région", "artisanal", "circuit court", "proximité"];
-  const ecoTransport = ["transport vert", "livraison écologique", "carbone neutre", "compensé carbone"];
-
-  veryLocal.forEach((o) => text.includes(o) && (s += 0.05));
-  local.forEach((o) => text.includes(o) && (s += 0.03));
-  ecoTransport.forEach((o) => text.includes(o) && (s += 0.02));
-
-  return Math.min(0.15, s);
-}
-
-function analyzeDurability(text: string): number {
-  let s = 0;
-  const kw = ["durable", "longue durée", "résistant", "qualité", "garantie", "réparable", "modulaire", "intemporel", "robuste", "solide", "longue vie"];
-
-  kw.forEach((k) => text.includes(k) && (s += 0.015));
-
-  return Math.min(0.1, s);
-}
-
-function analyzePenalties(text: string): number {
-  let p = 0;
-  const badMat = ["plastique", "polyester", "acrylique", "nylon", "pvc", "polystyrène", "pétrochimique"];
-  const badPract = ["jetable", "usage unique", "suremballé", "non recyclable", "toxique", "chimique"];
-  const distant = ["chine", "bangladesh", "vietnam", "importé", "transport longue distance"];
-
-  badMat.forEach((m) => text.includes(m) && (p += 0.05));
-  badPract.forEach((m) => text.includes(m) && (p += 0.03));
-  distant.forEach((m) => text.includes(m) && (p += 0.02));
-
-  return Math.min(0.25, p);
-}
+// ✅ Export final
+export {
+  updateProduct,
+  deleteProduct,
+  searchProducts,
+  getProductStats
+};
