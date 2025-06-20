@@ -1,59 +1,68 @@
-// ✅ FICHIER : src/app.ts
-
+// src/app.ts
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 
 import productRoutes from './routes/product.routes';
-import healthRouter from './routes/health.routes';
-import partnerRoutes from './routes/partner.routes'; // 👈 Ajouté pour tracking affiliation
+import healthRouter  from './routes/health.routes';
+import partnerRoutes from './routes/partner.routes';
 
-// 🌍 Charge les variables d'environnement depuis .env
 dotenv.config();
 
 const app: Application = express();
 
-// 🔐 Middlewares globaux
-app.use(cors());
+// Configuration CORS
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
+
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Autorise les requêtes sans origin (ex: Postman, curl)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Non autorisé par CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+// Middlewares
+app.use(cors(corsOptions));
 app.use(helmet());
 app.use(express.json());
 
-// 📦 Routes API
+// Routes
 app.use('/api', productRoutes);
-app.use('/api', partnerRoutes); // 👈 Tracking = partie de l'API
-app.use('/', healthRouter);     // ✅ Route de santé
+app.use('/api', partnerRoutes);
+app.use('/',     healthRouter);
 
-// 📋 Route racine d'information API
-app.get('/', (req, res) => {
+console.log('✅ Routes de tracking partenaire activées');
+console.log('✅ CORS configuré pour:', allowedOrigins);
+console.log('✅ Base de données:', process.env.DATABASE_URL ? 'connectée' : 'non configurée');
+
+// Racine d'info
+app.get('/', (_req, res) => {
   res.json({
-    message: "Ecolojia API",
-    version: "1.0.0", 
-    status: "operational",
+    message: 'Ecolojia API',
+    version: '1.0.0',
+    status : 'operational',
+    environment: process.env.NODE_ENV || 'development',
     endpoints: [
-      "GET /api/products",
-      "GET /api/products/:slug",
-      "POST /api/products",
-      "PUT /api/products/:id", 
-      "DELETE /api/products/:id",
-      "GET /api/products/search",
-      "GET /api/products/stats",
-      "GET /api/track/:id",              // 👈 Ajout du tracking ici
-      "GET /health"
+      'GET /api/products',
+      'GET /api/products/search',
+      'GET /api/products/stats', 
+      'GET /api/products/:slug',
+      'POST /api/products',
+      'PUT /api/products/:id',
+      'DELETE /api/products/:id',
+      'GET /api/track/:id',
+      'GET /health'
     ],
-    documentation: "https://github.com/ecojiaflow/ecolojia-backendV1",
     timestamp: new Date().toISOString()
   });
 });
 
-// 🚀 Démarrage serveur
-const PORT: number = parseInt(process.env.PORT || '3000', 10);
-
-app.listen(PORT, () => {
-  console.log(`🌱 Serveur Ecolojia démarré sur http://localhost:${PORT}`);
-  console.log(`📋 Documentation API: http://localhost:${PORT}/`);
-  console.log(`💚 Santé API: http://localhost:${PORT}/health`);
-});
-
-// Pour tests éventuels (ex: supertest)
 export default app;

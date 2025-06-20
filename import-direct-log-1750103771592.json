@@ -1,0 +1,187 @@
+{
+  "timestamp": "2025-06-16T19:56:11.591Z",
+  "imported": 1,
+  "total": 49,
+  "products": [
+    {
+      "id": "off_7622210578464",
+      "title": "Organic 70% Dark Chocolate Bar",
+      "description": "Produit bio Green & Black's. Catégorie: Snacks. Ingrédients: cocoa mass #, cane sugar #, cocoa butter #, vanilla extract #, may contain nuts, milk,...",
+      "slug": "organic-70-dark-chocolate-bar-off-0-1750103770353",
+      "brand": "Green & Black's",
+      "category": "alimentation-bio",
+      "tags": [
+        "bio",
+        "alimentaire",
+        "openfoodfacts",
+        "vegan",
+        "collation"
+      ],
+      "images": [
+        "https://images.openfoodfacts.org/images/products/762/221/057/8464/front_en.29.400.jpg"
+      ],
+      "zones_dispo": [
+        "FR"
+      ],
+      "prices": {
+        "FR": {
+          "amount": 22,
+          "currency": "EUR"
+        }
+      },
+      "affiliate_url": "https://world.openfoodfacts.org/product/7622210578464",
+      "eco_score": 0.8,
+      "ai_confidence": 0.75,
+      "confidence_pct": 75,
+      "confidence_color": "yellow",
+      "verified_status": "manual_review",
+      "resume_fr": "Green & Black's - Produit bio certifié OpenFoodFacts, respectueux de l'environnement.",
+      "resume_en": "Green & Black's - Certified organic product from OpenFoodFacts, environmentally friendly.",
+      "enriched_at": "2025-06-16T19:56:10.353Z",
+      "created_at": "2025-06-16T19:56:10.354Z"
+    },
+    {
+      "id": "off_7622210584724",
+      "title": "Dark chocolate",
+      "description": "Produit bio Green & Black's. Catégorie: Snacks. Ingrédients: pâte de cacao*, beurre de cacao*, cacao maigre en poudre*, sucre de canne*, extrait de vanille*, * ingrédients issus de l'agriculture biologique...",
+      "slug": "dark-chocolate-off-1-1750103770354",
+      "brand": "Green & Black's",
+      "category": "alimentation-bio",
+      "tags": [
+        "bio",
+        "alimentaire",
+        "openfoodfacts",
+        "vegan",
+        "collation"
+      ],
+      "images": [
+        "https://images.openfoodfacts.org/images/products/762/221/058/4724/front_en.95.400.jpg"
+      ],
+      "zones_dispo": [
+        "FR"
+      ],
+      "prices": {
+        "FR": {
+          "amount": 12,
+          "currency": "EUR"
+        }
+      },
+      "affiliate_url": "https://world.openfoodfacts.org/product/7622210584724",
+      "eco_score": 0.8,
+      "ai_confidence": 0.75,
+      "confidence_pct": 75,
+      "confidence_color": "yellow",
+      "verified_status": "manual_review",
+      "resume_fr": "Green & Black's - Produit bio certifié OpenFoodFacts, respectueux de l'environnement.",
+      "resume_en": "Green & Black's - Certified organic product from OpenFoodFacts, environmentally friendly.",
+      "enriched_at": "2025-06-16T19:56:10.354Z",
+      "created_at": "2025-06-16T19:56:10.354Z"
+    },
+    {
+      "id": "off_8052575090254",
+      "title": "Nocciolata bio",
+      "description": "Produit bio Rigoni di Asiago. Catégorie: Petit-déjeuners. Ingrédients: Sucre brut, pâte de noisettes 18,5%, huile de tournesol, lait écrémé en poudre, cacao maigre en poudre 6,5%, beurre de cacao, émulsifiant: lécithine d...",
+      "slug": "nocciolata-bio-off-2-1750103770354",
+      "brand": "Rigoni di Asiago",
+      "category": "alimentation-bio",
+      "tags": [
+        "bio",
+        "alimentaire",
+        "openfoodfacts"
+      ],
+      "images": [
+        "https://images.openfoodfacts.org/images/products/805/257/509/0254/front_en.43.400.jpg"
+      ],
+      "zones_dispo": [
+        "FR"
+      ],
+      "prices": {
+        "FR": {
+          "amount": 19,
+          "currency": "EUR"
+        }
+      },
+      "affiliate_url": "https://world.openfoodfacts.org/product/8052575090254",
+      "eco_score": 0.8,
+      "ai_confidence": 0.75,
+      "confidence_pct": 75,
+      "confidence_color": "yellow",
+      "verified_status": "manual_review",
+      "resume_fr": "Rigoni di Asiago - Produit bio certifié OpenFoodFacts, respectueux de l'environnement.",
+      "resume_en": "Rigoni di Asiago - Certified organic product from OpenFoodFacts, environmentally friendly.",
+      "enriched_at": "2025-06-16T19:56:10.354Z",
+      "created_at": "2025-06-16T19:56:10.354Z"
+    },
+    {
+      "id": "off_3155250358788",
+      "title": "Primevère bio doux tartine & cuisson",
+      "description": "Produit bio Primevère. Catégorie: Plant-based foods and beverages. Ingrédients: Huiles végétales non hydrogénées 54.5% (colza, palme), eau, émulsifiant (lécithine de tournesol), sel, arôme naturel de noix de coco, jus de citron co...",
+      "slug": "primev-re-bio-doux-tartine-cuisson-off-3-1750103770354",
+      "brand": "Primevère",
+      "category": "alimentation-bio",
+      "tags": [
+        "bio",
+        "alimentaire",
+        "openfoodfacts"
+      ],
+      "images": [
+        "https://images.openfoodfacts.org/images/products/315/525/035/8788/front_en.166.400.jpg"
+      ],
+      "zones_dispo": [
+        "FR"
+      ],
+      "prices": {
+        "FR": {
+          "amount": 9,
+          "currency": "EUR"
+        }
+      },
+      "affiliate_url": "https://world.openfoodfacts.org/product/3155250358788",
+      "eco_score": 0.9,
+      "ai_confidence": 0.75,
+      "confidence_pct": 75,
+      "confidence_color": "yellow",
+      "verified_status": "manual_review",
+      "resume_fr": "Primevère - Produit bio certifié OpenFoodFacts, respectueux de l'environnement.",
+      "resume_en": "Primevère - Certified organic product from OpenFoodFacts, environmentally friendly.",
+      "enriched_at": "2025-06-16T19:56:10.354Z",
+      "created_at": "2025-06-16T19:56:10.354Z"
+    },
+    {
+      "id": "off_5013665112273",
+      "title": "Organic Vegetable Stock Cubes",
+      "description": "Produit bio Kallø. Catégorie: Aliments et boissons à base de végétaux. Ingrédients: Sea salt, potato starch, sustainable palm oil, sugar, vegetables 6.8% (_celery_, onion, parsnip, tomato), sunflower oil, yeast extract, caramelised su...",
+      "slug": "organic-vegetable-stock-cubes-off-4-1750103770354",
+      "brand": "Kallø",
+      "category": "alimentation-bio",
+      "tags": [
+        "bio",
+        "alimentaire",
+        "openfoodfacts",
+        "boisson"
+      ],
+      "images": [
+        "https://images.openfoodfacts.org/images/products/501/366/511/2273/front_en.62.400.jpg"
+      ],
+      "zones_dispo": [
+        "FR"
+      ],
+      "prices": {
+        "FR": {
+          "amount": 13,
+          "currency": "EUR"
+        }
+      },
+      "affiliate_url": "https://world.openfoodfacts.org/product/5013665112273",
+      "eco_score": 0.8,
+      "ai_confidence": 0.75,
+      "confidence_pct": 75,
+      "confidence_color": "yellow",
+      "verified_status": "manual_review",
+      "resume_fr": "Kallø - Produit bio certifié OpenFoodFacts, respectueux de l'environnement.",
+      "resume_en": "Kallø - Certified organic product from OpenFoodFacts, environmentally friendly.",
+      "enriched_at": "2025-06-16T19:56:10.354Z",
+      "created_at": "2025-06-16T19:56:10.354Z"
+    }
+  ]
+}

@@ -1,367 +1,308 @@
-import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Request, Response } from "express";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-/**
- * GET /api/products
- * Retourne tous les produits pour la page d'accueil
- */
+/* --------------------------------------------------------------------------
+ * GET /api/products  → liste d'accueil
+ * ------------------------------------------------------------------------*/
 export const getAllProducts = async (req: Request, res: Response) => {
   try {
     const products = await prisma.product.findMany({
-      orderBy: {
-        created_at: 'desc',
-      },
-      include: {
-        partnerLinks: {
-          include: {
-            partner: true,
-          },
-        },
-      },
+      orderBy: { created_at: "desc" },
+      include: { partnerLinks: { include: { partner: true } } },
     });
-
-    res.status(200).json(products);
+    res.json(products);
   } catch (error) {
-    console.error('❌ Erreur récupération produits :', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error("❌ getAllProducts :", error);
+    res.status(500).json({ error: "Erreur serveur" });
   }
 };
 
-/**
- * GET /api/products/:slug
- * Retourne un produit par son slug
- */
+/* --------------------------------------------------------------------------
+ * GET /api/products/:slug  → recherche flexible multi-format
+ * ------------------------------------------------------------------------*/
 export const getProductBySlug = async (req: Request, res: Response) => {
-  const { slug } = req.params;
-
+  const raw = req.params.slug?.trim();
+  
+  if (!raw) return res.status(400).json({ error: "Slug manquant" });
+  
+  console.log("🔍 Recherche pour:", JSON.stringify(raw));
+  
   try {
-    const product = await prisma.product.findUnique({
-      where: {
-        slug,
-      },
-      include: {
-        partnerLinks: {
-          include: {
-            partner: true,
-          },
-        },
-      },
+    // Test 1: slug exact
+    let product = await prisma.product.findFirst({
+      where: { slug: raw },
+      include: { partnerLinks: { include: { partner: true } } },
     });
-
-    if (!product) {
-      return res.status(404).json({ error: 'Produit introuvable' });
+    
+    if (product) {
+      console.log("✅ Trouvé par slug exact");
+      return res.json(product);
     }
-
-    res.status(200).json(product);
+    
+    // Test 2: recherche par suffixe numérique (10+ chiffres consécutifs)
+    const numericSuffix = raw.match(/(\d{10,})/)?.[1];
+    
+    if (numericSuffix) {
+      console.log("🔍 Recherche par suffixe numérique:", numericSuffix);
+      
+      product = await prisma.product.findFirst({
+        where: { 
+          slug: { 
+            contains: numericSuffix,
+            mode: "insensitive" 
+          } 
+        },
+        include: { partnerLinks: { include: { partner: true } } },
+      });
+      
+      if (product) {
+        console.log("✅ Trouvé par suffixe numérique:", product.slug);
+        return res.json(product);
+      }
+    }
+    
+    // Test 3: recherche spéciale pour format off_XXXXXX
+    if (raw.startsWith('off_')) {
+      const offCode = raw.substring(4); // Enlève "off_"
+      console.log("🔍 Recherche format off_ avec code:", offCode);
+      
+      product = await prisma.product.findFirst({
+        where: { 
+          OR: [
+            { slug: { contains: offCode, mode: "insensitive" } },
+            { id: { contains: raw, mode: "insensitive" } },
+            { slug: { contains: raw, mode: "insensitive" } }
+          ]
+        },
+        include: { partnerLinks: { include: { partner: true } } },
+      });
+      
+      if (product) {
+        console.log("✅ Trouvé par code off_:", product.slug);
+        return res.json(product);
+      }
+    }
+    
+    // Test 4: recherche par ID exact (cas où le slug est en fait un ID)
+    console.log("🔍 Recherche par ID exact");
+    product = await prisma.product.findFirst({
+      where: { id: raw },
+      include: { partnerLinks: { include: { partner: true } } },
+    });
+    
+    if (product) {
+      console.log("✅ Trouvé par ID exact:", product.id);
+      return res.json(product);
+    }
+    
+    // Test 5: recherche endsWith avec préfixe -
+    const slug = raw.startsWith("-") ? raw : `-${raw}`;
+    console.log("🔍 Recherche endsWith:", slug);
+    
+    product = await prisma.product.findFirst({
+      where: { slug: { endsWith: slug, mode: "insensitive" } },
+      include: { partnerLinks: { include: { partner: true } } },
+    });
+    
+    if (product) {
+      console.log("✅ Trouvé par endsWith");
+      return res.json(product);
+    }
+    
+    // Test 6: recherche contains général
+    console.log("🔍 Recherche contains général");
+    product = await prisma.product.findFirst({
+      where: { 
+        OR: [
+          { slug: { contains: raw, mode: "insensitive" } },
+          { id: { contains: raw, mode: "insensitive" } },
+          { title: { contains: raw, mode: "insensitive" } }
+        ]
+      },
+      include: { partnerLinks: { include: { partner: true } } },
+    });
+    
+    if (product) {
+      console.log("✅ Trouvé par contains général");
+      return res.json(product);
+    }
+    
+    // Test 7: recherche par code barres (pour les off_XXXXX)
+    if (raw.includes('off') || raw.includes('_')) {
+      console.log("🔍 Recherche par pattern off/code barres");
+      const cleanCode = raw.replace(/off_?/gi, '').replace(/_/g, '');
+      
+      if (cleanCode.length > 6) {
+        product = await prisma.product.findFirst({
+          where: { 
+            OR: [
+              { slug: { contains: cleanCode, mode: "insensitive" } },
+              { id: { contains: cleanCode, mode: "insensitive" } }
+            ]
+          },
+          include: { partnerLinks: { include: { partner: true } } },
+        });
+        
+        if (product) {
+          console.log("✅ Trouvé par code barres nettoyé:", product.slug);
+          return res.json(product);
+        }
+      }
+    }
+    
+    console.log("❌ Aucun produit trouvé pour:", raw);
+    return res.status(404).json({ error: "Produit non trouvé" });
+    
   } catch (error) {
-    console.error('❌ Erreur récupération produit par slug :', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error("❌ getProductBySlug :", error);
+    res.status(500).json({ error: "Erreur serveur" });
   }
 };
 
-/**
- * POST /api/products
- * Crée un nouveau produit
- */
-export const createProduct = async (req: Request, res: Response): Promise<void> => {
+/* --------------------------------------------------------------------------
+ * POST /api/products  → création
+ * ------------------------------------------------------------------------*/
+export const createProduct = async (req: Request, res: Response) => {
   try {
-    const data = req.body;
+    const data = req.body ?? {};
+    if (typeof data !== "object") return res.status(400).json({ error: "Corps invalide" });
 
-    // Validation de base
-    if (!data || typeof data !== 'object') {
-      res.status(400).json({ error: 'Corps de requête invalide' });
-      return;
-    }
+    const slug =
+      data.slug || `${(data.title || "produit").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`;
 
-    const now = new Date().toISOString();
-
-    // Génération slug automatique si pas fourni
-    const generatedSlug = data.slug || 
-      `${(data.title || 'produit').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${Date.now()}`;
-
-    // Création produit avec valeurs par défaut
     const product = await prisma.product.create({
       data: {
-        id: data.id || `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        title: data.title ?? 'Produit sans titre',
-        description: data.description ?? '',
-        slug: generatedSlug,
+        id: data.id || `prod_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        title: data.title ?? "Produit sans titre",
+        description: data.description ?? "",
+        slug,
         brand: data.brand ?? null,
-        category: data.category ?? 'générique',
+        category: data.category ?? "générique",
         tags: Array.isArray(data.tags) ? data.tags : [],
         images: Array.isArray(data.images) ? data.images : [],
-        zones_dispo: Array.isArray(data.zones_dispo) ? data.zones_dispo : ['FR'],
+        zones_dispo: Array.isArray(data.zones_dispo) ? data.zones_dispo : ["FR"],
         prices: data.prices ?? {},
         affiliate_url: data.affiliate_url ?? null,
         eco_score: data.eco_score ?? 0.5,
         ai_confidence: data.ai_confidence ?? 0.5,
         confidence_pct: data.confidence_pct ?? 50,
-        confidence_color: data.confidence_color ?? 'orange',
-        verified_status: data.verified_status ?? 'manual_review',
+        confidence_color: data.confidence_color ?? "orange",
+        verified_status: data.verified_status ?? "manual_review",
         resume_fr: data.resume_fr ?? null,
         resume_en: data.resume_en ?? null,
-        enriched_at: data.enriched_at ? new Date(data.enriched_at) : new Date(),
-        created_at: data.created_at ? new Date(data.created_at) : new Date()
+        enriched_at: new Date(),
+        created_at: new Date(),
       },
-      include: {
-        partnerLinks: {
-          include: {
-            partner: true,
-          },
-        },
-      },
+      include: { partnerLinks: { include: { partner: true } } },
     });
-
-    console.log(`✅ Produit créé: ${product.title}`);
     res.status(201).json(product);
-
   } catch (error: any) {
-    console.error('❌ Erreur création produit:', error);
-    
-    if (error.code === 'P2002') {
-      res.status(409).json({ 
-        error: 'Produit existe déjà',
-        field: error.meta?.target?.[0] || 'slug'
-      });
-      return;
-    }
-    
-    res.status(500).json({ 
-      error: 'Erreur création produit',
-      details: error.message 
-    });
+    if (error.code === "P2002") return res.status(409).json({ error: "Produit existe déjà" });
+    console.error("❌ createProduct :", error);
+    res.status(500).json({ error: "Erreur création" });
   }
 };
 
-/**
- * PUT /api/products/:id
- * Met à jour un produit existant
- */
-export const updateProduct = async (req: Request, res: Response): Promise<void> => {
+/* --------------------------------------------------------------------------
+ * PUT /api/products/:id  → mise à jour
+ * ------------------------------------------------------------------------*/
+export const updateProduct = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const updateData = req.body;
-
-    // Vérifier que le produit existe
-    const existingProduct = await prisma.product.findUnique({
-      where: { id }
-    });
-
-    if (!existingProduct) {
-      res.status(404).json({ error: 'Produit non trouvé' });
-      return;
-    }
-
-    // Mise à jour
     const product = await prisma.product.update({
-      where: { id },
-      data: updateData,
-      include: {
-        partnerLinks: {
-          include: {
-            partner: true,
-          },
-        },
-      },
+      where: { id: req.params.id },
+      data: req.body,
+      include: { partnerLinks: { include: { partner: true } } },
     });
-
-    console.log(`✅ Produit mis à jour: ${product.title}`);
-    res.status(200).json(product);
-
+    res.json(product);
   } catch (error: any) {
-    console.error('❌ Erreur mise à jour:', error);
-    
-    if (error.code === 'P2025') {
-      res.status(404).json({ error: 'Produit non trouvé' });
-      return;
-    }
-    
-    res.status(500).json({ 
-      error: 'Erreur mise à jour',
-      details: error.message 
-    });
+    if (error.code === "P2025") return res.status(404).json({ error: "Produit non trouvé" });
+    console.error("❌ updateProduct :", error);
+    res.status(500).json({ error: "Erreur mise à jour" });
   }
 };
 
-/**
- * DELETE /api/products/:id
- * Supprime un produit
- */
-export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
+/* --------------------------------------------------------------------------
+ * DELETE /api/products/:id  → suppression
+ * ------------------------------------------------------------------------*/
+export const deleteProduct = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-
-    // Vérifier que le produit existe
-    const existingProduct = await prisma.product.findUnique({
-      where: { id }
-    });
-
-    if (!existingProduct) {
-      res.status(404).json({ error: 'Produit non trouvé' });
-      return;
-    }
-
-    // Suppression
-    await prisma.product.delete({
-      where: { id }
-    });
-
-    console.log(`✅ Produit supprimé: ${existingProduct.title} (${id})`);
-    res.status(200).json({ 
-      message: 'Produit supprimé avec succès',
-      deletedProduct: {
-        id: existingProduct.id,
-        title: existingProduct.title
-      }
-    });
-
+    await prisma.product.delete({ where: { id: req.params.id } });
+    res.json({ message: "Produit supprimé" });
   } catch (error: any) {
-    console.error('❌ Erreur suppression:', error);
-    
-    if (error.code === 'P2025') {
-      res.status(404).json({ error: 'Produit non trouvé' });
-      return;
-    }
-    
-    res.status(500).json({ 
-      error: 'Erreur suppression',
-      details: error.message 
-    });
+    if (error.code === "P2025") return res.status(404).json({ error: "Produit non trouvé" });
+    console.error("❌ deleteProduct :", error);
+    res.status(500).json({ error: "Erreur suppression" });
   }
 };
 
-/**
- * GET /api/products/search
- * Recherche de produits avec filtres
- */
-export const searchProducts = async (req: Request, res: Response): Promise<void> => {
+/* --------------------------------------------------------------------------
+ * GET /api/products/search  → recherche + filtres
+ * ------------------------------------------------------------------------*/
+export const searchProducts = async (req: Request, res: Response) => {
   try {
-    const { 
-      q,           
-      category,    
-      verified,    
-      eco_min,     
-      page = 1,    
-      limit = 20   
-    } = req.query;
+    const { q, category, verified, eco_min, page = 1, limit = 20 } = req.query;
+    const skip = (+page - 1) * +limit;
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
-
-    // Construction des filtres
     const where: any = {};
+    if (q) where.OR = [
+      { title: { contains: q as string, mode: "insensitive" } },
+      { description: { contains: q as string, mode: "insensitive" } },
+      { brand: { contains: q as string, mode: "insensitive" } },
+    ];
+    if (category) where.category = category;
+    if (verified === "true") where.verified_status = "verified";
+    if (eco_min) where.eco_score = { gte: parseFloat(eco_min as string) };
 
-    if (q) {
-      where.OR = [
-        { title: { contains: q as string, mode: 'insensitive' } },
-        { description: { contains: q as string, mode: 'insensitive' } },
-        { brand: { contains: q as string, mode: 'insensitive' } }
-      ];
-    }
-
-    if (category) {
-      where.category = category;
-    }
-
-    if (verified === 'true') {
-      where.verified_status = 'verified';
-    }
-
-    if (eco_min) {
-      where.eco_score = { gte: parseFloat(eco_min as string) };
-    }
-
-    // Recherche
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
         skip,
-        take: parseInt(limit as string),
+        take: +limit,
         orderBy: [
-          { verified_status: 'desc' },
-          { eco_score: 'desc' },
-          { created_at: 'desc' }
+          { verified_status: "desc" },
+          { eco_score: "desc" },
+          { created_at: "desc" },
         ],
-        include: {
-          partnerLinks: {
-            include: {
-              partner: true,
-            },
-          },
-        },
+        include: { partnerLinks: { include: { partner: true } } },
       }),
-      prisma.product.count({ where })
+      prisma.product.count({ where }),
     ]);
 
-    res.status(200).json({
-      products,
-      pagination: {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
-        total,
-        pages: Math.ceil(total / parseInt(limit as string))
-      },
-      filters: {
-        query: q,
-        category,
-        verified,
-        eco_min
-      }
-    });
-
-  } catch (error: any) {
-    console.error('❌ Erreur recherche produits:', error);
-    res.status(500).json({ 
-      error: 'Erreur recherche',
-      details: error.message 
-    });
+    res.json({ products, pagination: { page: +page, limit: +limit, total } });
+  } catch (error) {
+    console.error("❌ searchProducts :", error);
+    res.status(500).json({ error: "Erreur recherche" });
   }
 };
 
-/**
- * GET /api/products/stats
- * Statistiques des produits
- */
-export const getProductStats = async (req: Request, res: Response): Promise<void> => {
+/* --------------------------------------------------------------------------
+ * GET /api/products/stats  → statistiques rapides
+ * ------------------------------------------------------------------------*/
+export const getProductStats = async (req: Request, res: Response) => {
   try {
-    const [
-      total,
-      verified,
-      averageEcoScore,
-      topCategories
-    ] = await Promise.all([
+    const [total, verified, avg, groups] = await Promise.all([
       prisma.product.count(),
-      prisma.product.count({
-        where: { verified_status: 'verified' }
-      }),
-      prisma.product.aggregate({
-        _avg: { eco_score: true }
-      }),
+      prisma.product.count({ where: { verified_status: "verified" } }),
+      prisma.product.aggregate({ _avg: { eco_score: true } }),
       prisma.product.groupBy({
-        by: ['category'],
+        by: ["category"],
         _count: { category: true },
-        orderBy: { _count: { category: 'desc' } },
-        take: 5
-      })
+        take: 5,
+        orderBy: { _count: { category: "desc" } },
+      }),
     ]);
 
-    res.status(200).json({
+    res.json({
       total,
       verified,
-      verification_rate: total > 0 ? Math.round((verified / total) * 100) : 0,
-      average_eco_score: averageEcoScore._avg.eco_score || 0,
-      top_categories: topCategories.map(cat => ({
-        category: cat.category,
-        count: cat._count.category
-      }))
+      verification_rate: total ? Math.round((verified / total) * 100) : 0,
+      average_eco_score: avg._avg.eco_score ?? 0,
+      top_categories: groups.map((g) => ({ category: g.category, count: g._count.category })),
     });
-
-  } catch (error: any) {
-    console.error('❌ Erreur statistiques:', error);
-    res.status(500).json({ 
-      error: 'Erreur statistiques',
-      details: error.message 
-    });
+  } catch (error) {
+    console.error("❌ getProductStats :", error);
+    res.status(500).json({ error: "Erreur statistiques" });
   }
 };
