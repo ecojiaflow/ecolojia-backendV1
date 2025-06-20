@@ -4,6 +4,13 @@ import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { EcoScoreService } from "../services/eco-score.service";
 
+// Helper function pour déterminer la couleur de confiance
+function getConfidenceColor(confidence: number): 'green' | 'yellow' | 'red' {
+  if (confidence >= 0.8) return 'green';
+  if (confidence >= 0.5) return 'yellow';
+  return 'red';
+}
+
 // 🔍 GET /api/products
 export const getAllProducts = async (req: Request, res: Response) => {
   try {
@@ -53,6 +60,10 @@ export const createProduct = async (req: Request, res: Response) => {
       tags: data.tags ?? [],
     });
 
+    const ai_confidence = data.ai_confidence ?? 0.5;
+    const confidence_pct = Math.round(ai_confidence * 100);
+    const confidence_color = getConfidenceColor(ai_confidence);
+
     const product = await prisma.product.create({
       data: {
         id: data.id || `prod_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
@@ -67,9 +78,9 @@ export const createProduct = async (req: Request, res: Response) => {
         prices: data.prices ?? {},
         affiliate_url: data.affiliate_url ?? null,
         eco_score,
-        ai_confidence: data.ai_confidence ?? 0.5,
-        confidence_pct: data.confidence_pct ?? 50,
-        confidence_color: data.confidence_color ?? "orange",
+        ai_confidence,
+        confidence_pct,
+        confidence_color,
         verified_status: data.verified_status ?? "manual_review",
         resume_fr: data.resume_fr ?? null,
         resume_en: data.resume_en ?? null,
@@ -107,6 +118,10 @@ export const updateProduct = async (req: Request, res: Response) => {
       });
     }
 
+    const ai_confidence = data.ai_confidence ?? 0.5;
+    const confidence_pct = Math.round(ai_confidence * 100);
+    const confidence_color = getConfidenceColor(ai_confidence);
+
     const product = await prisma.product.update({
       where: { id },
       data: {
@@ -121,9 +136,9 @@ export const updateProduct = async (req: Request, res: Response) => {
         prices: data.prices,
         affiliate_url: data.affiliate_url,
         eco_score,
-        ai_confidence: data.ai_confidence,
-        confidence_pct: data.confidence_pct,
-        confidence_color: data.confidence_color,
+        ai_confidence,
+        confidence_pct,
+        confidence_color,
         verified_status: data.verified_status,
         resume_fr: data.resume_fr,
         resume_en: data.resume_en,
@@ -232,7 +247,7 @@ export const getProductStats = async (req: Request, res: Response) => {
 
     res.json({
       total_products: totalProducts,
-      average_eco_score: avgEcoScore._avg.eco_score || 0,
+      average_eco_score: Number(avgEcoScore._avg.eco_score) || 0,
       categories: categoryStats,
       top_products: topProducts
     });

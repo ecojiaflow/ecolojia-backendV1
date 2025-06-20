@@ -1,9 +1,17 @@
 module.exports = {
+  preset: 'ts-jest',
   testEnvironment: 'node',
   setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
-  testMatch: ['<rootDir>/tests/**/*.test.js'],
+  testMatch: [
+    '<rootDir>/tests/**/*.test.js',
+    '<rootDir>/tests/**/*.test.ts'
+  ],
+  transform: {
+    '^.+\\.ts$': 'ts-jest'
+  },
   collectCoverageFrom: [
-    'index.js',
+    'src/**/*.ts',
+    'src/**/*.js',
     '!node_modules/**'
   ],
   coverageThreshold: {
@@ -14,7 +22,7 @@ module.exports = {
       statements: 60
     }
   },
-  testTimeout: 15000,
+  testTimeout: 30000,
   verbose: true,
   detectOpenHandles: true,
   forceExit: true
