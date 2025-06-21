@@ -1,4 +1,3 @@
-// ✅ FICHIER CORRIGÉ : src/app.ts
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -9,11 +8,14 @@ import healthRouter from './routes/health.routes';
 import partnerRoutes from './routes/partner.routes';
 import ecoScoreRoutes from './routes/eco-score.routes';
 
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './docs/swagger';
+
 dotenv.config();
 
 const app: Application = express();
 
-// Configuration CORS
+// ✅ CORS CONFIGURATION
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
   'http://localhost:3000',
   'http://localhost:5173',
@@ -25,7 +27,6 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
 
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    // Autorise les requêtes sans origin (ex: Postman, curl)
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -34,26 +35,31 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-cron-key'] // 👈 AJOUT header cron
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-cron-key', 'x-api-key']
 };
 
-// Middlewares
+// ✅ MIDDLEWARES
 app.use(cors(corsOptions));
 app.use(helmet());
 app.use(express.json());
 
-// Routes
+// ✅ ROUTES API
 app.use('/api', productRoutes);
 app.use('/api', partnerRoutes);
-app.use('/api/eco-score', ecoScoreRoutes); // 👈 CORRECTION: préfixe /eco-score
+app.use('/api/eco-score', ecoScoreRoutes);
 app.use('/', healthRouter);
 
+// ✅ SWAGGER DOCS
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+console.log('📘 Swagger docs: http://localhost:3000/api-docs');
+
+// ✅ LOGS
 console.log('✅ Routes de tracking partenaire activées');
 console.log('✅ Routes de score écologique IA activées');
 console.log('✅ CORS configuré pour:', allowedOrigins);
 console.log('✅ Base de données:', process.env.DATABASE_URL ? 'connectée' : 'non configurée');
 
-// Racine d'info
+// ✅ ROOT INFO
 app.get('/', (_req, res) => {
   res.json({
     message: 'Ecolojia API',
@@ -75,7 +81,8 @@ app.get('/', (_req, res) => {
       'POST /api/eco-score/update-all',
       'GET /api/eco-score/stats',
       'GET /api/eco-score/test',
-      'GET /health'
+      'GET /health',
+      'GET /api-docs'
     ],
     timestamp: new Date().toISOString()
   });
