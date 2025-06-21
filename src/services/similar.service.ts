@@ -1,6 +1,4 @@
-// ✅ FICHIER COMPLET : src/services/similar.service.ts
-
-import { productsIndex, AlgoliaProduct, defaultSearchParams } from '../lib/algolia';
+import algoliaIndex, { AlgoliaProduct, defaultSearchParams } from '../lib/algolia'; // ✅ Correction ici
 import deepSeekClient from '../lib/deepseek';
 import { prisma } from '../lib/prisma';
 
@@ -17,14 +15,10 @@ interface SimilarProduct {
 }
 
 export class SimilarService {
-  /**
-   * Trouve des produits similaires en combinant Algolia + IA
-   */
   static async findSimilarProducts(productId: string, limit: number = 6): Promise<SimilarProduct[]> {
     try {
       console.log(`🔍 Recherche de produits similaires pour: ${productId}`);
 
-      // 1. Récupérer le produit source
       const sourceProduct = await prisma.product.findUnique({
         where: { id: productId },
         select: {
@@ -42,25 +36,20 @@ export class SimilarService {
         throw new Error(`Produit ${productId} non trouvé`);
       }
 
-      // 2. Recherche Algolia avec similarQuery
       const algoliaResults = await this.searchWithAlgolia(sourceProduct, limit);
       console.log(`🟢 Algolia: ${algoliaResults.length} résultats trouvés`);
 
-      // 3. Si pas assez de résultats, compléter avec l'IA
       let results = algoliaResults;
       if (results.length < 3) {
         console.log(`🧠 Fallback IA: seulement ${results.length} résultats Algolia`);
         const aiResults = await this.searchWithAI(sourceProduct, limit - results.length);
         console.log(`🟡 IA: ${aiResults.length} résultats supplémentaires`);
-        
-        // Déduplication par ID
+
         const existingIds = new Set(results.map(p => p.id));
         const uniqueAiResults = aiResults.filter(p => !existingIds.has(p.id));
-        
         results = [...results, ...uniqueAiResults];
       }
 
-      // 4. Trier par eco_score descendant et limiter
       const finalResults = results
         .sort((a, b) => (b.eco_score || 0) - (a.eco_score || 0))
         .slice(0, limit);
@@ -70,33 +59,25 @@ export class SimilarService {
 
     } catch (error) {
       console.error('❌ Erreur recherche produits similaires:', error);
-      // Fallback complet vers l'IA en cas d'erreur Algolia
       return this.searchWithAI(productId, limit);
     }
   }
 
-  /**
-   * Recherche avec Algolia similarQuery
-   */
-  private static async searchWithAlgolia(
-    sourceProduct: any, 
-    limit: number
-  ): Promise<SimilarProduct[]> {
+  private static async searchWithAlgolia(sourceProduct: any, limit: number): Promise<SimilarProduct[]> {
     try {
-      // Construire la requête de similarité
       const searchQuery = `${sourceProduct.title} ${sourceProduct.brand || ''} ${sourceProduct.category}`.trim();
-      
+
       const searchParams = {
         ...defaultSearchParams,
-        hitsPerPage: limit + 2, // +2 pour compenser le produit source et les doublons
+        hitsPerPage: limit + 2,
         similarQuery: searchQuery,
-        filters: `NOT objectID:${sourceProduct.id}`, // Exclure le produit source
+        filters: `NOT objectID:${sourceProduct.id}`,
         facetFilters: [
-          `category:${sourceProduct.category}` // Privilégier la même catégorie
+          `category:${sourceProduct.category}`
         ]
       };
 
-      const searchResult = await productsIndex.search('', searchParams);
+      const searchResult = await algoliaIndex.search('', searchParams);
 
       return searchResult.hits.map((hit: any) => ({
         id: hit.id || hit.objectID,
@@ -107,24 +88,16 @@ export class SimilarService {
         eco_score: hit.eco_score || 0,
         images: hit.images || [],
         slug: hit.slug || '',
-        source: 'algolia' as const
+        source: 'algolia'
       }));
-
     } catch (error) {
       console.error('❌ Erreur recherche Algolia:', error);
       return [];
     }
   }
 
-  /**
-   * Recherche avec IA DeepSeek (fallback)
-   */
-  private static async searchWithAI(
-    sourceProduct: any, 
-    limit: number
-  ): Promise<SimilarProduct[]> {
+  private static async searchWithAI(sourceProduct: any, limit: number): Promise<SimilarProduct[]> {
     try {
-      // Si on reçoit juste un ID, récupérer le produit complet
       let product = sourceProduct;
       if (typeof sourceProduct === 'string') {
         product = await prisma.product.findUnique({
@@ -141,7 +114,6 @@ export class SimilarService {
         if (!product) return [];
       }
 
-      // Prompt optimisé pour DeepSeek
       const prompt = `Trouve des produits similaires écologiques à: "${product.title}"
 Catégorie: ${product.category}
 Marque: ${product.brand || 'Non spécifiée'}
@@ -158,13 +130,12 @@ Format JSON uniquement:
 
       console.log('🧠 Appel IA DeepSeek pour suggestions similaires...');
       const aiResponse = await deepSeekClient.getSimilar(product);
-      
+
       if (!aiResponse || aiResponse.length === 0) {
         console.log('🧠 Suggestions IA simulées pour :', product.title);
         return this.getFallbackSuggestions(product, limit);
       }
 
-      // Utiliser directement la réponse du client DeepSeek
       return aiResponse.slice(0, limit).map((suggestion: any, index: number) => ({
         id: `ai_similar_${product.id}_${index}`,
         title: suggestion.title || suggestion.name || `Produit similaire ${index + 1}`,
@@ -174,18 +145,14 @@ Format JSON uniquement:
         eco_score: suggestion.eco_score || 0.6,
         images: [],
         slug: `ai-${(suggestion.title || `produit-${index}`).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-        source: 'ai' as const
+        source: 'ai'
       }));
-
     } catch (error) {
       console.error('❌ Erreur recherche IA:', error);
       return this.getFallbackSuggestions(sourceProduct, limit);
     }
   }
 
-  /**
-   * Suggestions de base (si tout échoue)
-   */
   private static getFallbackSuggestions(product: any, limit: number): SimilarProduct[] {
     const fallbacks = [
       {
@@ -217,7 +184,7 @@ Format JSON uniquement:
       eco_score: fallback.eco_score,
       images: [],
       slug: `fallback-${fallback.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-      source: 'ai' as const
+      source: 'ai'
     }));
   }
 }

@@ -1,37 +1,38 @@
-// ✅ FICHIER COMPLET : src/lib/algolia.ts
+import algoliasearch, { SearchIndex } from 'algoliasearch';
 
-import algoliasearch from 'algoliasearch';
+const ALGOLIA_APP_ID = process.env.ALGOLIA_APP_ID || 'A2KJGZ2811';
+const ALGOLIA_ADMIN_KEY = process.env.ALGOLIA_ADMIN_KEY || '8a6393c1ff95165413e7f0bfea804357';
+const ALGOLIA_INDEX_NAME = 'products';
 
-const client = algoliasearch(
-  process.env.ALGOLIA_APP_ID || 'A2KJGZ2811',
-  process.env.ALGOLIA_ADMIN_KEY || '8a6393c1ff95165413e7f0bfea804357'
-);
+// 🔧 Initialisation du client + index principal
+const client = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_ADMIN_KEY);
+const algoliaIndex: SearchIndex = client.initIndex(ALGOLIA_INDEX_NAME);
 
-// Index principal des produits
-export const productsIndex = client.initIndex('products');
+// ✅ Export direct de l’index pour usage dans syncAlgolia.ts
+export default algoliaIndex;
 
-// Types pour les résultats Algolia
+// ✅ Interface des objets produits Algolia
 export interface AlgoliaProduct {
   objectID: string;
-  id: string;
+  id?: string;
   title: string;
-  description: string;
+  description?: string;
   brand?: string;
-  category: string;
-  eco_score: number;
-  images: string[];
+  category?: string;
+  eco_score?: number;
+  images?: string[];
   slug: string;
-  tags: string[];
+  tags?: string[];
   _highlightResult?: any;
   _snippetResult?: any;
 }
 
-// Configuration de recherche par défaut
+// 🔧 Paramètres par défaut pour les recherches
 export const defaultSearchParams = {
   hitsPerPage: 20,
   attributesToRetrieve: [
     'objectID',
-    'id', 
+    'id',
     'title',
     'description',
     'brand',
@@ -44,5 +45,3 @@ export const defaultSearchParams = {
   attributesToHighlight: ['title', 'brand'],
   attributesToSnippet: ['description:50']
 };
-
-export default client;

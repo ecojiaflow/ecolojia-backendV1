@@ -10,13 +10,13 @@ datasource db {
 model Product {
   id               String           @id @default(uuid())
   title            String
-  description      String
+  description      String           @default("")
   slug             String           @unique
   brand            String?
-  category         String?
+  category         String?          @default("générique")
   tags             String[]         @default([])
   images           String[]         @default([])
-  zones_dispo      String[]
+  zones_dispo      String[]         @default([])
   prices           Json?
   affiliate_url    String?
   eco_score        Decimal?         @db.Decimal(3, 2)
@@ -24,8 +24,8 @@ model Product {
   confidence_pct   Int?
   confidence_color ConfidenceColor? @default(yellow)
   verified_status  VerifiedStatus   @default(manual_review)
-  resume_fr        String?
-  resume_en        String?
+  resume_fr        String?          @default("")
+  resume_en        String?          @default("")
   enriched_at      DateTime?
   created_at       DateTime         @default(now())
   updated_at       DateTime         @updatedAt
